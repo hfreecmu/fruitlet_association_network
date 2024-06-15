@@ -57,39 +57,43 @@ def get_infonce_loss(feats_0, feats_1, is_pad_0, is_pad_1):
 # TODO maybe only move one and keep other fixed?
 # TODO angle should be in range -pi/2 to pi/2 which we could scale 
 # to -1 to 1
-l2_loss = nn.MSELoss(reduction='none')
+l2_loss = nn.MSELoss()
 smooth_l1_loss = torch.nn.SmoothL1Loss(reduction='none')
-def get_ellipse_2d_loss(pos_orig_0, offset_0, 
+def get_ellipse_2d_loss(pos_orig_0, _, 
                        pos_orig_1, offset_1, 
                        offset_scaling,
                        is_pad_0, is_pad_1):
     
-    pos_0 = pos_orig_0 + torch.tanh(offset_0)*offset_scaling
-    pos_1 = pos_orig_1 + torch.tanh(offset_1)*offset_scaling
+    # pos_0 = pos_orig_0[:, :, :-1] + torch.tanh(offset_0)*offset_scaling
+    pos_0 = pos_orig_0[:, :, :-1]
+    #pos_1 = pos_orig_1[:, :, :-1] + torch.tanh(offset_1)*offset_scaling
+    pos_1 = pos_orig_1[:, :, :-1] + offset_1
 
     positions_0 = pos_0[:, :, 0:3]
     positions_1 = pos_1[:, :, 0:3]
-    scales_0 = pos_0[:, :, 3:5]
-    scales_1 = pos_1[:, :, 3:5]
-    angle_0 = pos_0[:, :, 5]
-    angle_1 = pos_1[:, :, 5]
+    # scales_0 = pos_0[:, :, 3:5]
+    # scales_1 = pos_1[:, :, 3:5]
+    # angle_0 = pos_0[:, :, 5]
+    # angle_1 = pos_1[:, :, 5]
 
-    pos_loss = l2_loss(positions_0, positions_1)
-    scale_loss = l2_loss(scales_0, scales_1)
+    # pos_loss = l2_loss(positions_0, positions_1)
+    #scale_loss = l2_loss(scales_0, scales_1)
 
-    phi = (torch.pi / 2) * (angle_0 - angle_1)
-    cos_phi = torch.cos(phi)
-    sin_phi = torch.sin(phi)
-    rho = torch.where(phi >= 0, torch.atan2(sin_phi, cos_phi), torch.atan2(-sin_phi, -cos_phi))
-    angle_loss = smooth_l1_loss(rho, torch.zeros_like(rho))
+    # phi = (torch.pi / 2) * (angle_0 - angle_1)
+    # cos_phi = torch.cos(phi)
+    # sin_phi = torch.sin(phi)
+    # rho = torch.where(phi >= 0, torch.atan2(sin_phi, cos_phi), torch.atan2(-sin_phi, -cos_phi))
+    # angle_loss = smooth_l1_loss(rho, torch.zeros_like(rho))
 
     valid_inds = torch.bitwise_and(~is_pad_0, ~is_pad_1)
-    pos_loss = pos_loss[valid_inds]
-    scale_loss = scale_loss[valid_inds]
-    angle_loss = angle_loss[valid_inds]
 
-    #TODO also not right
-    return pos_loss.mean(dim=0).sum(), scale_loss.mean(dim=0).sum(), angle_loss.mean()
+    pos_loss = l2_loss(positions_0[valid_inds], positions_1[valid_inds])
+
+    # pos_loss = pos_loss[valid_inds]
+    # scale_loss = scale_loss[valid_inds]
+    # angle_loss = angle_loss[valid_inds]
+
+    return pos_loss
 
 def train(cfg):
     dataloader = get_data_loader(shuffle=True, **cfg['data'])
@@ -123,8 +127,8 @@ def train(cfg):
         is_pad_0 = is_pad_0.to(cfg['device'])
         is_pad_1 = is_pad_1.to(cfg['device'])
 
-        data_0 = (fruitlet_images_0, fruitlet_ellipses_0, is_pad_0)
-        data_1 = (fruitlet_images_1, fruitlet_ellipses_1, is_pad_1)
+        data_0 = (fruitlet_images_0, torch.clone(fruitlet_ellipses_0), is_pad_0)
+        data_1 = (fruitlet_images_1, torch.clone(fruitlet_ellipses_1), is_pad_1)
         
         model_output = model(data_0, data_1)
 
@@ -134,13 +138,13 @@ def train(cfg):
         total_pos_loss = 0.0
         total_scale_loss = 0.0
         total_angle_loss = 0.0
-        # for ind in range(len(all_feats)):
-        if False:
+        for ind in range(len(all_feats)):
             feats_0, feats_1 = all_feats[ind]
-            offset_0, offset_1 = all_offsets[ind]
+            # offset_0, offset_1 = all_offsets[ind]
+            offset_1 = all_offsets[ind]
 
             feats_0 = feats_0[torch.arange(feats_0.shape[0])[:, None], matches_0]
-            offset_0 = offset_0[torch.arange(feats_0.shape[0])[:, None], matches_0]
+            #offset_0 = offset_0[torch.arange(feats_0.shape[0])[:, None], matches_0]
             fruitlet_ellipses_0_sort = fruitlet_ellipses_0[torch.arange(feats_0.shape[0])[:, None], matches_0]
             is_pad_0_sort = is_pad_0[torch.arange(feats_0.shape[0])[:, None], matches_0]
 
@@ -149,42 +153,43 @@ def train(cfg):
             fruitlet_ellipses_1_sort = fruitlet_ellipses_1[torch.arange(feats_1.shape[0])[:, None], matches_1]
             is_pad_1_sort = is_pad_1[torch.arange(feats_1.shape[0])[:, None], matches_1]
 
-            infonce_loss = get_infonce_loss(feats_0, feats_1,
-                                            is_pad_0_sort, is_pad_1_sort)
-            
-            # ellipse_loss = get_ellipse_2d_loss(fruitlet_ellipses_0_sort, offset_0,
-            #                                    fruitlet_ellipses_1_sort, offset_1,
-            #                                    cfg['model']['offset_scaling'],
-            #                                    is_pad_0_sort, is_pad_1_sort)
-            # pos_loss, scale_loss, angle_loss = ellipse_loss
+            # infonce_loss = get_infonce_loss(feats_0, feats_1,
+            #                                 is_pad_0_sort, is_pad_1_sort)
 
-            infonce_loss = infonce_loss*train_cfg["infonce_scale"]
+            ellipse_loss = get_ellipse_2d_loss(fruitlet_ellipses_0_sort, None,
+                                               fruitlet_ellipses_1_sort, offset_1,
+                                               cfg['model']['offset_scaling'],
+                                               is_pad_0_sort, is_pad_1_sort)
+            # pos_loss, scale_loss, angle_loss = ellipse_loss
+            pos_loss = ellipse_loss
+
+            # infonce_loss = infonce_loss*train_cfg["infonce_scale"]
             # pos_loss = pos_loss*train_cfg["pos_scale"]
             # scale_loss = scale_loss*train_cfg["scale_scale"]
             # angle_loss = angle_loss*train_cfg["angle_scale"]
 
-            total_infonce_loss += infonce_loss 
-            # total_pos_loss += pos_loss
+            # total_infonce_loss += infonce_loss 
+            total_pos_loss += pos_loss
             # total_scale_loss += scale_loss 
             # total_angle_loss += angle_loss
-        if True:
-            feats_0, feats_1 = all_feats[-1]
+        # if True:
+        #     feats_0, feats_1 = all_feats[-1]
 
-            feats_0 = feats_0[torch.arange(feats_0.shape[0])[:, None], matches_0]
-            is_pad_0_sort = is_pad_0[torch.arange(feats_0.shape[0])[:, None], matches_0]
+        #     feats_0 = feats_0[torch.arange(feats_0.shape[0])[:, None], matches_0]
+        #     is_pad_0_sort = is_pad_0[torch.arange(feats_0.shape[0])[:, None], matches_0]
 
-            feats_1 = feats_1[torch.arange(feats_1.shape[0])[:, None], matches_1]
-            is_pad_1_sort = is_pad_1[torch.arange(feats_1.shape[0])[:, None], matches_1]
+        #     feats_1 = feats_1[torch.arange(feats_1.shape[0])[:, None], matches_1]
+        #     is_pad_1_sort = is_pad_1[torch.arange(feats_1.shape[0])[:, None], matches_1]
 
-            total_infonce_loss = get_infonce_loss(feats_0, feats_1,
-                                            is_pad_0_sort, is_pad_1_sort)
+        #     total_infonce_loss = get_infonce_loss(feats_0, feats_1,
+        #                                     is_pad_0_sort, is_pad_1_sort)
 
-        total_infonce_loss = total_infonce_loss / len(all_feats)
-        # total_pos_loss = total_pos_loss / len(all_feats)
+        #total_infonce_loss = total_infonce_loss / len(all_feats)
+        total_pos_loss = total_pos_loss / len(all_feats)
         # total_scale_loss = total_scale_loss / len(all_feats)
         # total_angle_loss = total_angle_loss / len(all_feats)
 
-        total_loss = total_infonce_loss# + total_pos_loss + total_scale_loss + total_angle_loss
+        total_loss = total_pos_loss#total_infonce_loss# + total_pos_loss + total_scale_loss + total_angle_loss
         total_loss.backward()
         optimizer.step()
 
@@ -192,7 +197,7 @@ def train(cfg):
         if save_iter % train_cfg['step_iter_log'] == 0:
             # loss_array = [total_loss.item(), total_infonce_loss.item(), total_pos_loss.item(),
             #               total_scale_loss.item(), total_angle_loss.item()]
-            print('Iter loss at iteration ', iter_num, ' is: ', total_loss.item())
+            print('Iter loss at iteration ', iter_num, ' is: ', total_loss.item(), pos_loss.item())
 
         if save_iter % train_cfg['step_iter_save'] == 0:
             print('Saving checkpoint', iter_num)

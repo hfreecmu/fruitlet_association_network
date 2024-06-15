@@ -113,7 +113,8 @@ def load_data(annotations_path, image_path, cloud_path,
         nan_inds = np.isnan(cloud_points).any(axis=1)
         cloud_points = cloud_points[~nan_inds]
         if cloud_points.shape[0] == 0:
-            fruitlet_ellipses.append([0, 0, 0, 0, 0, 0, 0])
+            # fruitlet_ellipses.append([0, 0, 0, 0, 0, 0, 0])
+            fruitlet_ellipses.append([0, 0, 0, 0])
         else:
             med_vals = np.median(cloud_points, axis=0)
 
@@ -153,7 +154,8 @@ def load_data(annotations_path, image_path, cloud_path,
             scale_1 = (scale_1 - ELLIPSE_MEAN[2]) / ELLIPSE_STD[2]
             med_vals = (med_vals - ELLIPSE_MEAN[0]) / ELLIPSE_STD[0]
 
-            fruitlet_ellipses.append(med_vals.tolist() + [scale_0, scale_1, theta, 1])
+            # fruitlet_ellipses.append(med_vals.tolist() + [scale_0, scale_1, theta, 1])
+            fruitlet_ellipses.append(med_vals.tolist() + [1])
         ######## End ellipse ########
 
         ######## Start is_gt_fruitlet #######
@@ -176,7 +178,7 @@ def fruitlet_pad(num_pad, fruitlet_images, fruitlet_ellipses, fruitlet_ids):
     images_to_cat = torch.zeros(*[num_pad, img_chann, img_height, img_width], dtype=fruitlet_images.dtype)
     fruitlet_images = torch.vstack([fruitlet_images, images_to_cat])
 
-    ellipses_to_cat = np.zeros((num_pad, 7), dtype=fruitlet_ellipses.dtype)
+    ellipses_to_cat = np.zeros((num_pad, fruitlet_ellipses.shape[1]), dtype=fruitlet_ellipses.dtype)
     fruitlet_ellipses = np.vstack([fruitlet_ellipses, ellipses_to_cat])
 
     # making this -2 to avoid confusion

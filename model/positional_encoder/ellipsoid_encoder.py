@@ -17,7 +17,7 @@ NORM_DICT = {
 
 # TODO or should I do rotation angle thing from cv class?
 ELLIPSE_DICT = {
-    'ellipse_2d': 7, # 3 for pos, 2 for scale, 1 for angle #TODO not sure, 1 for has ellipse
+    'ellipse_2d': 4,#7, # 3 for pos, 2 for scale, 1 for angle #TODO not sure, 1 for has ellipse
     'ellipsoid_3d': 11, # 3 for pos, 3 for scale, and 4 for qua #TODO not sure, 1 for has ellipse
 }
 

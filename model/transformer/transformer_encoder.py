@@ -39,8 +39,8 @@ class TransformerEncoder(nn.Module):
                                                    )
 
         self.offset_head = blocks.MLP(
-            d_model, d_model, output_dim=ELLIPSE_DICT[pos_encoder_args['ellipse_type']], 
-            num_layers=3, tanh=False
+            d_model, d_model, output_dim=ELLIPSE_DICT[pos_encoder_args['ellipse_type']]-1, 
+            num_layers=3, tanh=True
         )
 
     def forward(self, feats_0, pos_0,
@@ -58,6 +58,7 @@ class TransformerEncoder(nn.Module):
         all_feats = []
         all_offsets = []
 
+        offset_1_prev = torch.zeros_like(pos_0[:, :, :-1])
         for ind in range(self.num_layers):
             # encode pos
             fp_0 = pos_0.view(full_batch_size, ellipse_dim)
@@ -76,15 +77,19 @@ class TransformerEncoder(nn.Module):
             )
 
             # update ellipse
-            feats_comb = torch.vstack([
-                feats_0.view(full_batch_size, self.d_model),
-                feats_1.view(full_batch_size, self.d_model)
-            ])
-            encoder_output = self.encoder_norm(feats_comb)
-            offset = self.offset_head(encoder_output)
-            offset_0, offset_1 = offset.split(full_batch_size)
-            offset_0 = offset_0.view(num_batches, fruitlets_per_batch, -1)
-            offset_1 = offset_0.view(num_batches, fruitlets_per_batch, -1)
+            # feats_comb = torch.vstack([
+            #     feats_0.view(full_batch_size, self.d_model),
+            #     feats_1.view(full_batch_size, self.d_model)
+            # ])
+            # encoder_output = self.encoder_norm(feats_comb)
+            # offset = self.offset_head(encoder_output)
+            # offset_0, offset_1 = offset.split(full_batch_size)
+            # offset_0 = offset_0.view(num_batches, fruitlets_per_batch, -1)
+            # offset_1 = offset_1.view(num_batches, fruitlets_per_batch, -1)
+
+            encoder_output_1 = self.encoder_norm(feats_1)
+            offset_1 = self.offset_head(encoder_output_1)
+            offset_1 = offset_1.view(num_batches, fruitlets_per_batch, -1)
 
             # TODO do I want to sigmoid this?
             # I will say yes because coordinates are normalized?
@@ -92,14 +97,19 @@ class TransformerEncoder(nn.Module):
             # also I'd want t
             # offset_scaled_0 = torch.sigmoid(offset_0) * self.offset_scaling
             # offset_scaled_1 = torch.sigmoid(offset_1) * self.offset_scaling
-            offset_scaled_0 = torch.tanh(offset_0) * self.offset_scaling
+            # offset_scaled_0 = torch.tanh(offset_0) * self.offset_scaling
             offset_scaled_1 = torch.tanh(offset_1) * self.offset_scaling
 
-            #pos_0 = pos_0 + offset_scaled_0
-            #pos_1 = pos_1 + offset_scaled_1
+            # pos_0[:, :, :-1] = pos_0[:, :, :-1] + offset_scaled_0
+            pos_1[:, :, :-1] = pos_1[:, :, :-1] + offset_scaled_1
+
+            offset_scaled_1 = offset_scaled_1 + offset_1_prev
+            offset_1_prev = offset_scaled_1
 
             all_feats.append([feats_0, feats_1])
-            all_offsets.append([offset_0, offset_1])
+            # all_offsets.append([offset_0, offset_1])
+            # all_offsets.append(offset_1)
+            all_offsets.append(offset_scaled_1)
 
         return feats_0, pos_0, feats_1, pos_1, all_feats, all_offsets
 
