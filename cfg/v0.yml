@@ -1,0 +1,51 @@
+
+device: 'cuda'
+
+train:
+  lr: 0.00001
+  num_iters: 1000
+
+  infonce_scale: 1.0
+  pos_scale: 1.0
+  scale_scale: 1.0
+  angle_scale: 1.0
+
+  step_iter_log: 5
+  step_iter_save: 100
+  checkpoint_dir: '/home/frc-ag-3/harry_ws/fruitlet_2023/scripts/inhand/tro_final/AssociationNetwork_v2/checkpoints'
+
+infer:
+  checkpoint_iter: -1
+  checkpoint_dir: '/home/frc-ag-3/harry_ws/fruitlet_2023/scripts/inhand/tro_final/AssociationNetwork_v2/checkpoints'
+
+data:
+  annotations_dir: '/home/frc-ag-3/harry_ws/fruitlet_2023/labelling/inhand/tro_final/id_annotations_more_overfit'
+  images_dir: '/home/frc-ag-3/harry_ws/fruitlet_2023/labelling/inhand/tro_final/selected_images/images'
+  pointcloud_dir: '/home/frc-ag-3/harry_ws/fruitlet_2023/labelling/inhand/tro_final/point_clouds'
+  image_size: 64
+  augment: False
+  batch_size: 8
+
+model:
+  d_model: 256
+  offset_scaling: 2.5
+
+  vis_encoder_args:
+    model_type: 'resnet-18'
+  
+
+  transformer_encoder_args:
+    num_layers: 3
+  
+    transformer_encoder_layer_args:
+      nhead: 8
+      dropout: 0 #0.3
+      activation: 'relu'
+      dim_feedforward: 1024
+
+    pos_encoder_args: 
+      ellipse_type: 'ellipse_2d'
+      num_hidden_layers: 2
+      activation: 'relu' # 'leaky_relu'
+      norm: 'batch_no_track'
+      dropout: 0 #0.3
