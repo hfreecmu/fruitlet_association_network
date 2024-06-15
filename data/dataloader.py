@@ -171,6 +171,9 @@ def load_data(annotations_path, image_path, cloud_path,
     fruitlet_ellipses = np.stack(fruitlet_ellipses).astype(np.float32)
     fruitlet_ids = np.array(fruitlet_ids)
     is_gt_fruitlets = np.array(is_gt_fruitlets)
+
+    # center fruitlet ellipses
+    fruitlet_ellipses[:, 0:3] -= np.mean(fruitlet_ellipses[:, 0:3], axis=0) 
     
     return fruitlet_model_ims, fruitlet_ellipses, fruitlet_ids, is_gt_fruitlets
 
@@ -218,6 +221,11 @@ class AssociationDataset(Dataset):
     
     def __getitem__(self, index):
         entry_0, entry_1 = self.file_data[index]
+
+        if self.augment:
+            if np.random.uniform() < 0.5:
+                entry_0, entry_1 = entry_1, entry_0
+
         file_key_0, annotations_path_0, image_path_0, cloud_path_0 = entry_0
         file_key_1, annotations_path_1, image_path_1, cloud_path_1 = entry_1
 
@@ -229,6 +237,33 @@ class AssociationDataset(Dataset):
         fruitlet_images_0, fruitlet_ellipses_0, fruitlet_ids_0, is_gt_fruitlets_0 = data_0
         fruitlet_images_1, fruitlet_ellipses_1, fruitlet_ids_1, is_gt_fruitlets_1 = data_1
 
+        if self.augment:
+            if np.random.uniform() < 0.5:
+                fruitlet_images_0 = torch.flip(fruitlet_images_0, dims=(3,))
+                fruitlet_ellipses_0[:, 1] = -fruitlet_ellipses_0[:, 1]
+
+            if np.random.uniform() < 0.5:
+                fruitlet_images_1 = torch.flip(fruitlet_images_1, dims=(3,))
+                fruitlet_ellipses_1[:, 1] = -fruitlet_ellipses_1[:, 1]
+
+            # now shuffle
+            rand_inds_0 = torch.randperm(fruitlet_images_0.shape[0])
+            rand_inds_1 = torch.randperm(fruitlet_images_1.shape[0])
+
+            fruitlet_images_0 = fruitlet_images_0[rand_inds_0]
+            fruitlet_ellipses_0 = fruitlet_ellipses_0[rand_inds_0]
+            fruitlet_ids_0 = fruitlet_ids_0[rand_inds_0]
+            is_gt_fruitlets_0 = is_gt_fruitlets_0[rand_inds_0]
+
+            fruitlet_images_1 = fruitlet_images_1[rand_inds_1]
+            fruitlet_ellipses_1 = fruitlet_ellipses_1[rand_inds_1]
+            fruitlet_ids_1 = fruitlet_ids_1[rand_inds_1]
+            is_gt_fruitlets_1 = is_gt_fruitlets_1[rand_inds_1]
+
+        ### now icp fruitlet ellipses
+        # NOT IMPLEMENTED IS IT NEEDED
+        ###
+
         # get only gt fruitlet data
         # augment possibility
         fruitlet_images_0 = fruitlet_images_0[is_gt_fruitlets_0]
@@ -239,17 +274,16 @@ class AssociationDataset(Dataset):
         fruitlet_ellipses_1 = fruitlet_ellipses_1[is_gt_fruitlets_1]
         fruitlet_ids_1 = fruitlet_ids_1[is_gt_fruitlets_1]
 
-        # final step, done after aug
-        # but should maybe shuffle
+        # final step
         is_pad_0 = np.zeros((self.max_gt_fruitlets), dtype=bool)
         is_pad_1 = np.zeros((self.max_gt_fruitlets), dtype=bool)
 
         num_pad_0 = self.max_gt_fruitlets - fruitlet_images_0.shape[0]
-        if num_pad_0 < 0:
+        if num_pad_0 <= 0: # I always want one in case of matches logic below
             raise RuntimeError('Too many fruitlets 0')
         
         num_pad_1 = self.max_gt_fruitlets - fruitlet_images_1.shape[0]
-        if num_pad_1 < 0:
+        if num_pad_1 <= 0:
             raise RuntimeError('Too many fruitlets 1')
         
         if num_pad_0 > 0:

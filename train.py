@@ -49,7 +49,7 @@ def get_infonce_loss(feats_0, feats_1, is_pad_0, is_pad_1):
         # TODO this is not right but want a hack for now
         #total_loss = total_loss + loss_0.mean() + loss_1.mean()
 
-    total_loss = ((total_loss_0 + total_loss_1)/num_fruitlets).sum()
+    total_loss = ((total_loss_0 + total_loss_1)/num_fruitlets).mean()
 
 
     return total_loss
@@ -96,7 +96,7 @@ def get_ellipse_2d_loss(pos_orig_0, _,
     return pos_loss
 
 def train(cfg):
-    dataloader = get_data_loader(shuffle=True, **cfg['data'])
+    dataloader = get_data_loader(shuffle=True, augment=True, **cfg['data'])
 
     model = FruitletAssociator(**cfg['model']).to(cfg['device'])
 
@@ -135,27 +135,27 @@ def train(cfg):
 
         _, _, _, _, all_feats, all_offsets = model_output
         
-        #total_infonce_loss = 0.0
+        total_infonce_loss = 0.0
         total_pos_loss = 0.0
-        total_scale_loss = 0.0
-        total_angle_loss = 0.0
+        # total_scale_loss = 0.0
+        # total_angle_loss = 0.0
         for ind in range(len(all_feats)):
-            #feats_0, feats_1 = all_feats[ind]
+            feats_0, feats_1 = all_feats[ind]
             # offset_0, offset_1 = all_offsets[ind]
             offset_1 = all_offsets[ind]
 
-            #feats_0 = feats_0[torch.arange(feats_0.shape[0])[:, None], matches_0]
+            feats_0 = feats_0[torch.arange(feats_0.shape[0])[:, None], matches_0]
             #offset_0 = offset_0[torch.arange(feats_0.shape[0])[:, None], matches_0]
             fruitlet_ellipses_0_sort = fruitlet_ellipses_0[torch.arange(offset_1.shape[0])[:, None], matches_0]
             is_pad_0_sort = is_pad_0[torch.arange(offset_1.shape[0])[:, None], matches_0]
 
-            #feats_1 = feats_1[torch.arange(feats_1.shape[0])[:, None], matches_1]
+            feats_1 = feats_1[torch.arange(feats_1.shape[0])[:, None], matches_1]
             offset_1 = offset_1[torch.arange(offset_1.shape[0])[:, None], matches_1]
             fruitlet_ellipses_1_sort = fruitlet_ellipses_1[torch.arange(offset_1.shape[0])[:, None], matches_1]
             is_pad_1_sort = is_pad_1[torch.arange(offset_1.shape[0])[:, None], matches_1]
 
-            # infonce_loss = get_infonce_loss(feats_0, feats_1,
-            #                                 is_pad_0_sort, is_pad_1_sort)
+            infonce_loss = get_infonce_loss(feats_0, feats_1,
+                                            is_pad_0_sort, is_pad_1_sort)
 
             ellipse_loss = get_ellipse_2d_loss(fruitlet_ellipses_0_sort, None,
                                                fruitlet_ellipses_1_sort, offset_1,
@@ -164,28 +164,28 @@ def train(cfg):
             # pos_loss, scale_loss, angle_loss = ellipse_loss
             pos_loss = ellipse_loss
 
-            #infonce_loss = infonce_loss*train_cfg["infonce_scale"]
+            infonce_loss = infonce_loss*train_cfg["infonce_scale"]
             pos_loss = pos_loss*train_cfg["pos_scale"]
             # scale_loss = scale_loss*train_cfg["scale_scale"]
             # angle_loss = angle_loss*train_cfg["angle_scale"]
 
-            #total_infonce_loss += infonce_loss 
+            total_infonce_loss += infonce_loss 
             total_pos_loss += pos_loss
             # total_scale_loss += scale_loss 
             # total_angle_loss += angle_loss
-        if True:
-            feats_0, feats_1 = all_feats[-1]
+        # if True:
+        #     feats_0, feats_1 = all_feats[-1]
 
-            feats_0 = feats_0[torch.arange(feats_0.shape[0])[:, None], matches_0]
-            is_pad_0_sort = is_pad_0[torch.arange(feats_0.shape[0])[:, None], matches_0]
+        #     feats_0 = feats_0[torch.arange(feats_0.shape[0])[:, None], matches_0]
+        #     is_pad_0_sort = is_pad_0[torch.arange(feats_0.shape[0])[:, None], matches_0]
 
-            feats_1 = feats_1[torch.arange(feats_1.shape[0])[:, None], matches_1]
-            is_pad_1_sort = is_pad_1[torch.arange(feats_1.shape[0])[:, None], matches_1]
+        #     feats_1 = feats_1[torch.arange(feats_1.shape[0])[:, None], matches_1]
+        #     is_pad_1_sort = is_pad_1[torch.arange(feats_1.shape[0])[:, None], matches_1]
 
-            total_infonce_loss = get_infonce_loss(feats_0, feats_1,
-                                            is_pad_0_sort, is_pad_1_sort)*train_cfg["infonce_scale"]
+        #     total_infonce_loss = get_infonce_loss(feats_0, feats_1,
+        #                                     is_pad_0_sort, is_pad_1_sort)*train_cfg["infonce_scale"]
 
-        #total_infonce_loss = total_infonce_loss / len(all_feats)
+        total_infonce_loss = total_infonce_loss / len(all_feats)
         total_pos_loss = total_pos_loss / len(all_feats)
         # total_scale_loss = total_scale_loss / len(all_feats)
         # total_angle_loss = total_angle_loss / len(all_feats)

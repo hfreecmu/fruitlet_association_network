@@ -14,7 +14,7 @@ from data.dataloader import ELLIPSE_MEAN, ELLIPSE_STD
 
 from train import get_ellipse_2d_loss
 def infer(cfg):
-    dataloader = get_data_loader(shuffle=False, **cfg['data'])
+    dataloader = get_data_loader(shuffle=False, augment=False, **cfg['data'])
 
     model = FruitletAssociator(**cfg['model']).to(cfg['device'])
 
