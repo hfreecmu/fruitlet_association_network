@@ -105,14 +105,15 @@ def train(cfg):
     #TODO weight decay?
     optimizer = optim.Adam(model.parameters(), lr=train_cfg['lr'])
     
-    dataloader_iterator = iter(dataloader)
-    for iter_num in range(train_cfg['num_iters']):
-        try:
-            batch_data = next(dataloader_iterator)
-        except StopIteration:
-            dataloader_iterator = iter(dataloader)
-            batch_data = next(dataloader_iterator)
+    # dataloader_iterator = iter(dataloader)
+    # for iter_num in range(train_cfg['num_iters']):
+    #     try:
+    #         batch_data = next(dataloader_iterator)
+    #     except StopIteration:
+    #         dataloader_iterator = iter(dataloader)
+    #         batch_data = next(dataloader_iterator)
 
+    def run():
         optimizer.zero_grad()
 
         _, fruitlet_images_0, fruitlet_ellipses_0, \
@@ -134,24 +135,24 @@ def train(cfg):
 
         _, _, _, _, all_feats, all_offsets = model_output
         
-        total_infonce_loss = 0.0
+        #total_infonce_loss = 0.0
         total_pos_loss = 0.0
         total_scale_loss = 0.0
         total_angle_loss = 0.0
         for ind in range(len(all_feats)):
-            feats_0, feats_1 = all_feats[ind]
+            #feats_0, feats_1 = all_feats[ind]
             # offset_0, offset_1 = all_offsets[ind]
             offset_1 = all_offsets[ind]
 
-            feats_0 = feats_0[torch.arange(feats_0.shape[0])[:, None], matches_0]
+            #feats_0 = feats_0[torch.arange(feats_0.shape[0])[:, None], matches_0]
             #offset_0 = offset_0[torch.arange(feats_0.shape[0])[:, None], matches_0]
-            fruitlet_ellipses_0_sort = fruitlet_ellipses_0[torch.arange(feats_0.shape[0])[:, None], matches_0]
-            is_pad_0_sort = is_pad_0[torch.arange(feats_0.shape[0])[:, None], matches_0]
+            fruitlet_ellipses_0_sort = fruitlet_ellipses_0[torch.arange(offset_1.shape[0])[:, None], matches_0]
+            is_pad_0_sort = is_pad_0[torch.arange(offset_1.shape[0])[:, None], matches_0]
 
-            feats_1 = feats_1[torch.arange(feats_1.shape[0])[:, None], matches_1]
-            offset_1 = offset_1[torch.arange(feats_1.shape[0])[:, None], matches_1]
-            fruitlet_ellipses_1_sort = fruitlet_ellipses_1[torch.arange(feats_1.shape[0])[:, None], matches_1]
-            is_pad_1_sort = is_pad_1[torch.arange(feats_1.shape[0])[:, None], matches_1]
+            #feats_1 = feats_1[torch.arange(feats_1.shape[0])[:, None], matches_1]
+            offset_1 = offset_1[torch.arange(offset_1.shape[0])[:, None], matches_1]
+            fruitlet_ellipses_1_sort = fruitlet_ellipses_1[torch.arange(offset_1.shape[0])[:, None], matches_1]
+            is_pad_1_sort = is_pad_1[torch.arange(offset_1.shape[0])[:, None], matches_1]
 
             # infonce_loss = get_infonce_loss(feats_0, feats_1,
             #                                 is_pad_0_sort, is_pad_1_sort)
@@ -163,41 +164,50 @@ def train(cfg):
             # pos_loss, scale_loss, angle_loss = ellipse_loss
             pos_loss = ellipse_loss
 
-            # infonce_loss = infonce_loss*train_cfg["infonce_scale"]
-            # pos_loss = pos_loss*train_cfg["pos_scale"]
+            #infonce_loss = infonce_loss*train_cfg["infonce_scale"]
+            pos_loss = pos_loss*train_cfg["pos_scale"]
             # scale_loss = scale_loss*train_cfg["scale_scale"]
             # angle_loss = angle_loss*train_cfg["angle_scale"]
 
-            # total_infonce_loss += infonce_loss 
+            #total_infonce_loss += infonce_loss 
             total_pos_loss += pos_loss
             # total_scale_loss += scale_loss 
             # total_angle_loss += angle_loss
-        # if True:
-        #     feats_0, feats_1 = all_feats[-1]
+        if True:
+            feats_0, feats_1 = all_feats[-1]
 
-        #     feats_0 = feats_0[torch.arange(feats_0.shape[0])[:, None], matches_0]
-        #     is_pad_0_sort = is_pad_0[torch.arange(feats_0.shape[0])[:, None], matches_0]
+            feats_0 = feats_0[torch.arange(feats_0.shape[0])[:, None], matches_0]
+            is_pad_0_sort = is_pad_0[torch.arange(feats_0.shape[0])[:, None], matches_0]
 
-        #     feats_1 = feats_1[torch.arange(feats_1.shape[0])[:, None], matches_1]
-        #     is_pad_1_sort = is_pad_1[torch.arange(feats_1.shape[0])[:, None], matches_1]
+            feats_1 = feats_1[torch.arange(feats_1.shape[0])[:, None], matches_1]
+            is_pad_1_sort = is_pad_1[torch.arange(feats_1.shape[0])[:, None], matches_1]
 
-        #     total_infonce_loss = get_infonce_loss(feats_0, feats_1,
-        #                                     is_pad_0_sort, is_pad_1_sort)
+            total_infonce_loss = get_infonce_loss(feats_0, feats_1,
+                                            is_pad_0_sort, is_pad_1_sort)*train_cfg["infonce_scale"]
 
         #total_infonce_loss = total_infonce_loss / len(all_feats)
         total_pos_loss = total_pos_loss / len(all_feats)
         # total_scale_loss = total_scale_loss / len(all_feats)
         # total_angle_loss = total_angle_loss / len(all_feats)
 
-        total_loss = total_pos_loss#total_infonce_loss# + total_pos_loss + total_scale_loss + total_angle_loss
+        total_loss = total_pos_loss + total_infonce_loss# + total_pos_loss + total_scale_loss + total_angle_loss
         total_loss.backward()
         optimizer.step()
+
+        return total_loss.item(), total_infonce_loss.item(), total_pos_loss.item(), pos_loss.item()
+
+    for iter_num in range(train_cfg['num_iters']):
+        for _, batch_data in enumerate(dataloader):
+            total_loss, total_infonce_loss, total_pos_loss, pos_loss = run()
 
         save_iter = iter_num + 1
         if save_iter % train_cfg['step_iter_log'] == 0:
             # loss_array = [total_loss.item(), total_infonce_loss.item(), total_pos_loss.item(),
             #               total_scale_loss.item(), total_angle_loss.item()]
-            print('Iter loss at iteration ', iter_num, ' is: ', total_loss.item(), pos_loss.item())
+            print('Iter loss at iteration ', iter_num, ' is: \n', 
+                  total_loss, 
+                  total_infonce_loss,
+                  total_pos_loss, pos_loss)
 
         if save_iter % train_cfg['step_iter_save'] == 0:
             print('Saving checkpoint', iter_num)

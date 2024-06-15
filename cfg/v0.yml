@@ -2,16 +2,16 @@
 device: 'cuda'
 
 train:
-  lr: 0.00001
-  num_iters: 1000
+  lr: 1e-5
+  num_iters: 100
 
-  infonce_scale: 1.0
+  infonce_scale: 0.5 #1.0
   pos_scale: 1.0
   scale_scale: 1.0
   angle_scale: 1.0
 
-  step_iter_log: 5
-  step_iter_save: 100
+  step_iter_log: 1 #5
+  step_iter_save: 5 #100
   checkpoint_dir: '/home/frc-ag-3/harry_ws/fruitlet_2023/scripts/inhand/tro_final/AssociationNetwork_v2/checkpoints'
 
 infer:
@@ -19,12 +19,14 @@ infer:
   checkpoint_dir: '/home/frc-ag-3/harry_ws/fruitlet_2023/scripts/inhand/tro_final/AssociationNetwork_v2/checkpoints'
 
 data:
-  annotations_dir: '/home/frc-ag-3/harry_ws/fruitlet_2023/labelling/inhand/tro_final/id_annotations_more_overfit'
+  #annotations_dir: '/home/frc-ag-3/harry_ws/fruitlet_2023/labelling/inhand/tro_final/id_annotations_more_overfit'
+  #annotations_dir: '/home/frc-ag-3/harry_ws/fruitlet_2023/scripts/inhand/tro_final/AssociationNetwork_v2/datasets/test'
+  annotations_dir: '/home/frc-ag-3/harry_ws/fruitlet_2023/labelling/inhand/tro_final/id_annotations'
   images_dir: '/home/frc-ag-3/harry_ws/fruitlet_2023/labelling/inhand/tro_final/selected_images/images'
   pointcloud_dir: '/home/frc-ag-3/harry_ws/fruitlet_2023/labelling/inhand/tro_final/point_clouds'
   image_size: 64
   augment: False
-  batch_size: 8
+  batch_size: 64
 
 model:
   d_model: 256
@@ -35,7 +37,7 @@ model:
   
 
   transformer_encoder_args:
-    num_layers: 3
+    num_layers: 6
   
     transformer_encoder_layer_args:
       nhead: 8
@@ -43,9 +45,10 @@ model:
       activation: 'relu'
       dim_feedforward: 1024
 
+    #TODO abs pos encoder might be better see bonn
     pos_encoder_args: 
       ellipse_type: 'ellipse_2d'
       num_hidden_layers: 2
       activation: 'relu' # 'leaky_relu'
-      norm: 'batch'
+      norm: 'batch_no_track'
       dropout: 0 #0.3

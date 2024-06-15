@@ -23,6 +23,10 @@ def infer(cfg):
 
     model.eval()
 
+    num_f_corr = 0
+    num_p_corr = 0
+    num_f_neg = 0
+    num_p_neg = 0
     for _, batch_data in enumerate(dataloader):
 
         _, fruitlet_images_0, fruitlet_ellipses_0, \
@@ -42,15 +46,7 @@ def infer(cfg):
         
         model_output = model(data_0, data_1)
 
-        _, positions_0, _, positions_1, _, all_offsets = model_output
-
-        # feats_0 = feats_0[torch.arange(feats_0.shape[0])[:, None], matches_0]
-        # positions_0 = positions_0[torch.arange(feats_0.shape[0])[:, None], matches_0]
-        # is_pad_0 = is_pad_0[torch.arange(feats_0.shape[0])[:, None], matches_0]
-
-        # feats_1 = feats_1[torch.arange(feats_1.shape[0])[:, None], matches_1]
-        # positions_1 = positions_1[torch.arange(feats_1.shape[0])[:, None], matches_1]
-        # is_pad_1 = is_pad_1[torch.arange(feats_1.shape[0])[:, None], matches_1]
+        feats_0, positions_0, feats_1, positions_1, _, all_offsets = model_output
 
         total_ellipse_loss = 0.0
         for ind in range(len(all_offsets)):
@@ -71,9 +67,9 @@ def infer(cfg):
             total_ellipse_loss += ellipse_loss
         
         total_ellipse_loss = total_ellipse_loss / len(all_offsets)
-
-        # infonce_loss = get_infonce_loss(feats_0, feats_1,
-        #                                 is_pad_0, is_pad_1)
+        
+        feats_0 = feats_0[torch.arange(feats_0.shape[0])[:, None], matches_0]
+        feats_1 = feats_1[torch.arange(feats_1.shape[0])[:, None], matches_1]
         
         positions_0 = positions_0[torch.arange(offset_1.shape[0])[:, None], matches_0]
         is_pad_0 = is_pad_0[torch.arange(offset_1.shape[0])[:, None], matches_0]
@@ -81,20 +77,18 @@ def infer(cfg):
         positions_1 = positions_1[torch.arange(offset_1.shape[0])[:, None], matches_1]
         is_pad_1 = is_pad_1[torch.arange(offset_1.shape[0])[:, None], matches_1]
 
+        infonce_loss = get_infonce_loss(feats_0, feats_1,
+                                        is_pad_0, is_pad_1)
+
         for batch_ind in range(positions_0.shape[0]):
-            # f_0 = feats_0[batch_ind]
-            # f_1 = feats_1[batch_ind]
+            f_0 = feats_0[batch_ind]
+            f_1 = feats_1[batch_ind]
 
-            # f_0 = f_0[~is_pad_0[batch_ind]].cpu().numpy()
-            # f_1 = f_1[~is_pad_1[batch_ind]].cpu().numpy()
+            f_0 = f_0[~is_pad_0[batch_ind]].cpu().numpy()
+            f_1 = f_1[~is_pad_1[batch_ind]].cpu().numpy()
 
-            # dists = cdist(f_0, f_1)
-            # row_ind, col_ind = linear_sum_assignment(dists)
-
-            # for r, c in zip(row_ind, col_ind):
-            #     print(r, c)
-
-            
+            f_dists = cdist(f_0, f_1)
+            f_row_ind, f_col_ind = linear_sum_assignment(f_dists)
 
             p_0 = positions_0[batch_ind, :, :-1]
             p_1 = positions_1[batch_ind, :, :-1]
@@ -108,13 +102,26 @@ def infer(cfg):
             p_0_unnorm = p_0.cpu().numpy()*std + mean
             p_1_unnorm = p_1.cpu().numpy()*std + mean
 
-            dists = cdist(p_0_unnorm, p_1_unnorm)
+            p_dists = cdist(p_0_unnorm, p_1_unnorm)
 
-            row_ind, col_ind = linear_sum_assignment(dists)
+            p_row_ind, p_col_ind = linear_sum_assignment(p_dists)
 
-            for r, c in zip(row_ind, col_ind):
-                print(r, c)
+            for r, c in zip(f_row_ind, f_col_ind):
+                if r != c:
+                    num_f_neg += 1
+                else:
+                    num_f_corr += 1
+                    # print('f', r, c)
+ 
+            for r, c in zip(p_row_ind, p_col_ind):
+                if r != c:
+                    num_p_neg += 1
+                else:
+                    num_p_corr += 1
+                    # print('p', r, c)
 
+    print('f', num_f_corr, num_f_neg)
+    print('p', num_p_corr, num_p_neg)
 
 
 

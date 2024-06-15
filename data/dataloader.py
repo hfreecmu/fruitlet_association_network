@@ -49,6 +49,8 @@ def vis_padded_resized_im(padded_im, identifier, det_ind, output_dir):
     cv2.imwrite(output_path, padded_im)
 
 #TODO could add augment here to add unecessary fruitlet
+#TODO MAJOR MAJOR MAJOR denter fruitlet clouds
+# WILL REQUIRE UPDATING NORMS
 def load_data(annotations_path, image_path, cloud_path, 
               image_transform, fruitlet_transform):
     
