@@ -17,6 +17,9 @@ def train(train_params,
     train_dataset = AssociationDataset(**train_params)
     val_dataset = AssociationDataset(**val_params)
 
+    print('Len train dataset: ', len(train_dataset))
+    print('Len val dataset: ', len(val_dataset))
+
     train_loader = DataLoader(dataset=train_dataset, 
                               batch_size=train_params['batch_size'],
                               shuffle=True)
@@ -47,6 +50,6 @@ def train(train_params,
                 val_dataloaders=val_loader)
 
 if __name__ == "__main__":
-    cfg = OmegaConf.load('cfg/v0_full.yml')
+    cfg = OmegaConf.load('cfg/v0.yml')
     print(OmegaConf.to_yaml(cfg))
     train(**cfg)

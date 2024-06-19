@@ -1,9 +1,14 @@
-exp_name: 'exp_v0_full'
+exp_name: 'exp_full'
 
 anno_root: &anno_root 'datasets'
-images_dir: &images_dir '/ocean/projects/agr240003p/hfreeman/t_ro/labels/selected_images/images'
 cache: &cache True
 checkpoint_dir: 'lightning_logs'
+
+# change these two running bridges vs local
+images_dir: &images_dir '/ocean/projects/agr240003p/hfreeman/t_ro/labels/selected_images/images'
+#images_dir: &images_dir '/home/frc-ag-3/harry_ws/fruitlet_2023/labelling/inhand/tro_final/selected_images/images'
+batch_size: &batch_size 32
+#batch_size: &batch_size 8
 
 image_size: &image_size 128
 vis_encoder_type: &vis_encoder_type 'resnet-34'
@@ -37,7 +42,7 @@ model_params:
 
 train_params:
   num_epochs: 100
-  batch_size: 32
+  batch_size: *batch_size
   lr: 1e-5
   weight_decay: null
   augment: True
@@ -51,7 +56,7 @@ train_params:
   match_thresh: *match_thresh
 
 val_params:
-  batch_size: 32
+  batch_size: *batch_size
   augment: False
 
   anno_root: *anno_root
@@ -63,7 +68,7 @@ val_params:
   match_thresh: *match_thresh
 
 test_params:
-  batch_size: 32
+  batch_size: *batch_size
   augment: False
 
   checkpoint_metrics:
