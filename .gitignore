@@ -1,3 +1,5 @@
 **__pycache__
 *.pyc
 script.py
+bak/
+lightning_logs/

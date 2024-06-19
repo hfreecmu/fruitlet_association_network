@@ -1,53 +1,71 @@
+exp_name: 'harry_test'
 
-device: 'cuda'
+anno_root: &anno_root '/home/frc-ag-3/harry_ws/fruitlet_2023/scripts/inhand/tro_final/AssociationNetwork_v2/datasets'
+images_dir: &images_dir '/home/frc-ag-3/harry_ws/fruitlet_2023/labelling/inhand/tro_final/selected_images/images'
+cache: &cache True
 
-train:
-  lr: 1e-4
-  num_iters: 100
+image_size: &image_size 128
+vis_encoder_type: &vis_encoder_type 'resnet-34'
+pos_encoder_type: &pos_encoder_type 'resnet-34'
 
-  infonce_scale: 1.0
-  pos_scale: 0.1
-  scale_scale: 1.0
-  angle_scale: 1.0
+loss_params: &loss_params
+  dist_type: 'l2'
+  alpha: 1.0
 
-  step_iter_log: 5 #5
-  step_iter_save: 50 #100
-  checkpoint_dir: '/home/frc-ag-3/harry_ws/fruitlet_2023/scripts/inhand/tro_final/AssociationNetwork_v2/checkpoints'
-
-infer:
-  checkpoint_iter: -1
-  checkpoint_dir: '/home/frc-ag-3/harry_ws/fruitlet_2023/scripts/inhand/tro_final/AssociationNetwork_v2/checkpoints'
-
-data:
-  annotations_dir: '/home/frc-ag-3/harry_ws/fruitlet_2023/labelling/inhand/tro_final/id_annotations_more_overfit'
-  #annotations_dir: '/home/frc-ag-3/harry_ws/fruitlet_2023/scripts/inhand/tro_final/AssociationNetwork_v2/datasets/test'
-  # annotations_dir: '/home/frc-ag-3/harry_ws/fruitlet_2023/labelling/inhand/tro_final/id_annotations'
-  images_dir: '/home/frc-ag-3/harry_ws/fruitlet_2023/labelling/inhand/tro_final/selected_images/images'
-  pointcloud_dir: '/home/frc-ag-3/harry_ws/fruitlet_2023/labelling/inhand/tro_final/point_clouds'
-  image_size: 64
-  batch_size: 32
-
-model:
+model_params:
   d_model: 256
-  offset_scaling: 2.5
+  image_size: *image_size
 
   vis_encoder_args:
-    model_type: 'resnet-18'
-  
+    pretrained: True
+    use_cls: True
+    encoder_type: *vis_encoder_type
 
-  transformer_encoder_args:
-    num_layers: 9
-  
-    transformer_encoder_layer_args:
-      nhead: 8
-      dropout: 0.0 #0.3
-      activation: 'relu'
-      dim_feedforward: 1024
+  pos_encoder_args:
+    pretrained: True
+    use_cls: True
+    encoder_type: *pos_encoder_type
 
-    #TODO abs pos encoder might be better see bonn
-    pos_encoder_args: 
-      ellipse_type: 'ellipse_2d'
-      num_hidden_layers: 2
-      activation: 'relu' # 'leaky_relu'
-      norm: 'batch_no_track'
-      dropout: 0.1 #0.3
+  trans_encoder_args:
+    nhead: 8
+    dim_feedforward: 1024
+    dropout: 0.0
+    num_layers: 5
+
+train_params:
+  num_epochs: 100
+  batch_size: 8
+  lr: 1e-5
+  weight_decay: null
+  augment: True
+
+  anno_root: *anno_root
+  anno_subdir: 'mini_train'
+  images_dir: *images_dir
+  image_size: *image_size
+  encoder_type: *vis_encoder_type
+  cache: *cache
+
+val_params:
+  batch_size: 8
+  augment: False
+
+  anno_root: *anno_root
+  anno_subdir: 'mini_val'
+  images_dir: *images_dir
+  image_size: *image_size
+  encoder_type: *vis_encoder_type
+  cache: *cache
+
+test_params:
+  batch_size: 8
+  augment: False
+
+  anno_root: *anno_root
+  anno_subdir: 'mini_val'
+  images_dir: *images_dir
+  image_size: *image_size
+  encoder_type: *vis_encoder_type
+  cache: *cache
+
+  checkpoint: './lightning_logs/version_3/checkpoints/harry_test/lighsample-mnist_epoch=19-val_loss=0.03.ckpt'

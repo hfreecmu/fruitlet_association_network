@@ -4,8 +4,8 @@ from torchvision.ops import FrozenBatchNorm2d
 
 class ResNetEncoder(nn.Module):
     def __init__(self, 
-                 image_size, 
                  output_dim, 
+                 image_size, 
                  encoder_type,
                  pretrained=True,
                  **kwargs):
@@ -26,6 +26,8 @@ class ResNetEncoder(nn.Module):
         self.model = nn.Sequential(
             *list(model(weights=weights, norm_layer=FrozenBatchNorm2d).children())[:-2]
         )
+
+        self.model[0] = nn.Conv2d(4, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
 
         output_size = 512*(image_size//32)**2
         self.output_proj = nn.Linear(output_size, output_dim)
