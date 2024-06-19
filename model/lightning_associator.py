@@ -6,18 +6,9 @@ from scipy.optimize import linear_sum_assignment
 
 from model.associator import FruitletAssociator
 
-#max(||f(a) - f(p)||_2 - ||f(a) - f(n)||_2 + a, 0)
-def get_triplet_losses(enc_0, enc_1, dist_type, alpha,
-                       matches_gt, masks_gt):
-    if dist_type == 'l2':
-        dists = torch.cdist(enc_0, enc_1)
-    else:
-        raise RuntimeError('Invalid dist type: ' + dist_type)
-    
-    breakpoint()
-
 # reproduces https://stats.stackexchange.com/questions/573581/why-does-contrastive-loss-and-triplet-loss-have-the-margin-element-in-them
 # except the pow
+# also https://medium.com/@maksym.bekuzarov/losses-explained-contrastive-loss-f8f57fe32246
 def contrastive_loss(features1, features2, gt_match, gt_mask, dist_type, margin=1.0,
                      return_dist = False):
     # Ensure features are normalized
@@ -54,11 +45,52 @@ def contrastive_loss(features1, features2, gt_match, gt_mask, dist_type, margin=
         return loss.mean()
     else:
         return loss.mean(), distances
-    
+
+def get_metrics(dists, is_pad_0, is_pad_1, matches_gt, match_thresh):
+    dists = dists.cpu().numpy()
+    padded_0s = is_pad_0.cpu().numpy()
+    padded_1s = is_pad_1.cpu().numpy()
+    full_true_pos = 0
+    full_false_pos = 0
+    full_false_neg = 0
+    for batch_dists, batch_matches_gt, batch_pad_0s, batch_pad_1s \
+        in zip(dists, matches_gt, padded_0s, padded_1s):
+
+        batch_dists = batch_dists[~batch_pad_0s][:, ~batch_pad_1s]
+        matches = batch_matches_gt[~batch_pad_0s][:, ~batch_pad_1s]
+            
+        row_inds, col_inds = linear_sum_assignment(batch_dists)
+
+        is_match = torch.zeros_like(matches)
+        is_match[row_inds, col_inds] = 1.0
+        is_match[batch_dists > match_thresh] = 0.0
+
+        # true_pos = matches[row_inds, col_inds].sum()
+        # false_pos = (1-matches)[row_inds, col_inds].sum()
+        # false_neg = matches.sum() - true_pos
+        true_pos = (matches * is_match).sum()
+        false_pos = ((1 - matches) * is_match).sum()
+        false_neg = matches.sum() - true_pos
+
+        full_true_pos += true_pos
+        full_false_pos += false_pos
+        full_false_neg += false_neg
+
+    if full_true_pos == 0:
+        precision = 0
+        recall = 0
+        f1 = 0
+    else:
+        precision = full_true_pos / (full_true_pos + full_false_pos)
+        recall = full_true_pos / (full_true_pos + full_false_neg)
+        f1 = 2*precision*recall / (precision + recall)
+
+    return precision, recall, f1
 
 class LightningAssociator(L.LightningModule):
     def __init__(self,
                  loss_params,
+                 match_thresh,
                  lr=None,
                  weight_decay=None, 
                  **kwargs):
@@ -68,6 +100,7 @@ class LightningAssociator(L.LightningModule):
 
         self.lr = lr
         self.weight_decay = weight_decay
+        self.match_thresh = match_thresh
         self.dist_type = loss_params['dist_type']
         self.alpha = loss_params['alpha']
 
@@ -75,10 +108,10 @@ class LightningAssociator(L.LightningModule):
 
     def training_step(self, batch, batch_idx):
         file_keys_0, fruitlet_ims_0, cloud_ims_0, \
-               is_pad_0, fruitlet_ids_0, \
-               file_keys_1, fruitlet_ims_1, cloud_ims_1, \
-               is_pad_1, fruitlet_ids_1, \
-               matches_gt, masks_gt = batch
+        is_pad_0, fruitlet_ids_0, \
+        file_keys_1, fruitlet_ims_1, cloud_ims_1, \
+        is_pad_1, fruitlet_ids_1, \
+        matches_gt, masks_gt = batch
         
         data_0 = (fruitlet_ims_0, cloud_ims_0, is_pad_0)
         data_1 = (fruitlet_ims_1, cloud_ims_1, is_pad_1)
@@ -95,30 +128,10 @@ class LightningAssociator(L.LightningModule):
 
     def validation_step(self, batch, batch_index):
         file_keys_0, fruitlet_ims_0, cloud_ims_0, \
-               is_pad_0, fruitlet_ids_0, \
-               file_keys_1, fruitlet_ims_1, cloud_ims_1, \
-               is_pad_1, fruitlet_ids_1, \
-               matches_gt, masks_gt = batch
-        
-        data_0 = (fruitlet_ims_0, cloud_ims_0, is_pad_0)
-        data_1 = (fruitlet_ims_1, cloud_ims_1, is_pad_1)
-
-        enc_0, enc_1 = self.associator(data_0, data_1)
-
-        loss = contrastive_loss(enc_0, enc_1, 
-                                matches_gt, masks_gt,
-                                self.dist_type,
-                                margin=self.alpha)
-        
-        self.log("val_loss", loss)
-        return loss
-    
-    def test_step(self, batch, batch_idx):
-        file_keys_0, fruitlet_ims_0, cloud_ims_0, \
-               is_pad_0, fruitlet_ids_0, \
-               file_keys_1, fruitlet_ims_1, cloud_ims_1, \
-               is_pad_1, fruitlet_ids_1, \
-               matches_gt, masks_gt = batch
+        is_pad_0, fruitlet_ids_0, \
+        file_keys_1, fruitlet_ims_1, cloud_ims_1, \
+        is_pad_1, fruitlet_ids_1, \
+        matches_gt, masks_gt = batch
         
         data_0 = (fruitlet_ims_0, cloud_ims_0, is_pad_0)
         data_1 = (fruitlet_ims_1, cloud_ims_1, is_pad_1)
@@ -131,36 +144,35 @@ class LightningAssociator(L.LightningModule):
                                 margin=self.alpha,
                                 return_dist=True)
         
-        dists = dists.cpu().numpy()
-        padded_0s = is_pad_0.cpu().numpy()
-        padded_1s = is_pad_1.cpu().numpy()
-        full_true_pos = 0
-        full_false_pos = 0
-        full_false_neg = 0
-        for batch_dists, batch_matches_gt, batch_pad_0s, batch_pad_1s \
-            in zip(dists, matches_gt, padded_0s, padded_1s):
+        precision, recall, f1 = get_metrics(dists, is_pad_0, is_pad_1,
+                                            matches_gt, self.match_thresh)
+        
+        self.log("val_loss", loss)
+        self.log('precision', precision)
+        self.log('recall', recall)
+        self.log('f1', f1)
+        return loss
+    
+    def test_step(self, batch, batch_idx):
+        file_keys_0, fruitlet_ims_0, cloud_ims_0, \
+        is_pad_0, fruitlet_ids_0, \
+        file_keys_1, fruitlet_ims_1, cloud_ims_1, \
+        is_pad_1, fruitlet_ids_1, \
+        matches_gt, masks_gt = batch
+        
+        data_0 = (fruitlet_ims_0, cloud_ims_0, is_pad_0)
+        data_1 = (fruitlet_ims_1, cloud_ims_1, is_pad_1)
 
-            batch_dists = batch_dists[~batch_pad_0s][:, ~batch_pad_1s]
-            matches = batch_matches_gt[~batch_pad_0s][:, ~batch_pad_1s]
-            
-            row_inds, col_inds = linear_sum_assignment(batch_dists)
+        enc_0, enc_1 = self.associator(data_0, data_1)
 
-            true_pos = matches[row_inds, col_inds].sum()
-            false_pos = (1-matches)[row_inds, col_inds].sum()
-            false_neg = matches.sum() - true_pos
-
-            full_true_pos += true_pos
-            full_false_pos += false_pos
-            full_false_neg += false_neg
-            
-        if full_true_pos == 0:
-            precision = 0
-            recall = 0
-            f1 = 0
-        else:
-            precision = full_true_pos / (full_true_pos + full_false_pos)
-            recall = full_true_pos / (full_true_pos + full_false_neg)
-            f1 = 2*precision*recall / (precision + recall)
+        loss, dists = contrastive_loss(enc_0, enc_1, 
+                                matches_gt, masks_gt,
+                                self.dist_type,
+                                margin=self.alpha,
+                                return_dist=True)
+        
+        precision, recall, f1 = get_metrics(dists, is_pad_0, is_pad_1,
+                                            matches_gt, self.match_thresh)
             
         self.log("test_loss", loss)
         self.log('precision', precision)

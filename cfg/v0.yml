@@ -1,12 +1,15 @@
-exp_name: 'harry_test'
+exp_name: 'overfit_exp'
 
-anno_root: &anno_root '/home/frc-ag-3/harry_ws/fruitlet_2023/scripts/inhand/tro_final/AssociationNetwork_v2/datasets'
+anno_root: &anno_root 'datasets'
 images_dir: &images_dir '/home/frc-ag-3/harry_ws/fruitlet_2023/labelling/inhand/tro_final/selected_images/images'
 cache: &cache True
+checkpoint_dir: 'lightning_logs'
 
 image_size: &image_size 128
 vis_encoder_type: &vis_encoder_type 'resnet-34'
 pos_encoder_type: &pos_encoder_type 'resnet-34'
+
+match_thresh: &match_thresh 0.5
 
 loss_params: &loss_params
   dist_type: 'l2'
@@ -45,6 +48,7 @@ train_params:
   image_size: *image_size
   encoder_type: *vis_encoder_type
   cache: *cache
+  match_thresh: *match_thresh
 
 val_params:
   batch_size: 8
@@ -56,10 +60,15 @@ val_params:
   image_size: *image_size
   encoder_type: *vis_encoder_type
   cache: *cache
+  match_thresh: *match_thresh
 
 test_params:
   batch_size: 8
   augment: False
+
+  checkpoint_metrics:
+    metric_type: 'val_loss'
+    is_min: True
 
   anno_root: *anno_root
   anno_subdir: 'mini_val'
@@ -67,5 +76,4 @@ test_params:
   image_size: *image_size
   encoder_type: *vis_encoder_type
   cache: *cache
-
-  checkpoint: './lightning_logs/version_3/checkpoints/harry_test/lighsample-mnist_epoch=19-val_loss=0.03.ckpt'
+  match_thresh: *match_thresh
