@@ -2,4 +2,4 @@
 *.pyc
 script.py
 bak/
-lightning_logs/
+**lightning_logs
