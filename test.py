@@ -31,6 +31,6 @@ def test(test_params,
     trainer.test(model=model, dataloaders=test_loader)
 
 if __name__ == "__main__":
-    cfg = OmegaConf.load('cfg/v0.yml')
+    cfg = OmegaConf.load('cfg/v0_overfit.yml')
     print(OmegaConf.to_yaml(cfg))
     test(**cfg)

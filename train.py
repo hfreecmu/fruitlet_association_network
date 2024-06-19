@@ -50,6 +50,6 @@ def train(train_params,
                 val_dataloaders=val_loader)
 
 if __name__ == "__main__":
-    cfg = OmegaConf.load('cfg/v0.yml')
+    cfg = OmegaConf.load('cfg/v0_overfit.yml')
     print(OmegaConf.to_yaml(cfg))
     train(**cfg)
