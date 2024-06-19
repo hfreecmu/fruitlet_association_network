@@ -123,7 +123,7 @@ class LightningAssociator(L.LightningModule):
                                 self.dist_type,
                                 margin=self.alpha)
         
-        self.log("train_loss", loss)
+        self.log("train_loss", loss, prog_bar=True)
         return loss
 
     def validation_step(self, batch, batch_index):
@@ -147,10 +147,10 @@ class LightningAssociator(L.LightningModule):
         precision, recall, f1 = get_metrics(dists, is_pad_0, is_pad_1,
                                             matches_gt, self.match_thresh)
         
-        self.log("val_loss", loss)
+        self.log("val_loss", loss, prog_bar=True)
         self.log('precision', precision)
         self.log('recall', recall)
-        self.log('f1', f1)
+        self.log('f1', f1, prog_bar=True)
         return loss
     
     def test_step(self, batch, batch_idx):
