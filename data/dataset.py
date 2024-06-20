@@ -5,6 +5,7 @@ import torchvision
 import numpy as np
 import torch.nn.functional as F
 from scipy.spatial.transform import Rotation
+import torchvision.transforms.functional
 
 from util.util import get_identifier, read_json, write_json
 
@@ -103,6 +104,8 @@ class AssociationDataset(Dataset):
         self.fruitlet_transform = get_fruitlet_transform(image_size)
         self.cloud_transform = get_cloud_transform(CLOUD_MEANS, CLOUD_STDS)
 
+        self.random_brightness = torchvision.transforms.ColorJitter(brightness=0.1,contrast=0.1,saturation=0.1)
+
         self.file_data = self._get_files(min_fruitlets_per_im, min_fruitlet_matches, cache)
 
     def __len__(self):
@@ -150,7 +153,9 @@ class AssociationDataset(Dataset):
             uniformed_cloud_points = (cloud_points - CLOUD_MINS) / (CLOUD_MAXS - CLOUD_MINS)
             uniformed_cloud_points = torch.as_tensor(uniformed_cloud_points, dtype=image.dtype)
 
-            cloud_image_sub = torch.zeros_like(image)
+            # larger is further away
+            # so nothing there should be inifite - max value
+            cloud_image_sub = torch.zeros_like(image) + np.max(CLOUD_MAXS)
             cloud_image_sub[:, seg_inds[:, 0], seg_inds[:, 1]] = uniformed_cloud_points.T
             cloud_image_sub = self.cloud_transform(cloud_image_sub)
 
@@ -172,6 +177,21 @@ class AssociationDataset(Dataset):
 
             fruitlet_im = image[:, round_y0:round_y1, round_x0:round_x1]
             cloud_im = cloud_image[:, round_y0:round_y1, round_x0:round_x1]
+
+            # random crop
+            if self.augment:
+                _, fruitlet_height, fruitlet_width = fruitlet_im.shape
+                new_height = int(np.random.uniform(low=0.9, high=1.0)*fruitlet_height)
+                new_width = int(np.random.uniform(low=0.9, high=1.0)*fruitlet_width)
+                i, j, h, w = torchvision.transforms.RandomCrop.get_params(fruitlet_im, 
+                                                                       output_size=(new_height, new_width))
+                
+                fruitlet_im = torchvision.transforms.functional.crop(fruitlet_im,
+                                                                     i, j, h, w)
+                
+                cloud_im = torchvision.transforms.functional.crop(cloud_im,
+                                                                     i, j, h, w)
+                
             _, fruitlet_height, fruitlet_width = fruitlet_im.shape
 
             # pad fruitlet_im
