@@ -122,7 +122,11 @@ class LightningAssociator(L.LightningModule):
                                 matches_gt, masks_gt,
                                 self.dist_type,
                                 margin=self.alpha)
-        
+       
+        sch = self.lr_schedulers()
+        if self.trainer.is_last_batch and (self.trainer.current_epoch + 1) % 10 == 0:
+            sch.step()
+
         self.log("train_loss", loss, prog_bar=True)
         return loss
 
@@ -182,13 +186,16 @@ class LightningAssociator(L.LightningModule):
 
 
     def configure_optimizers(self):
+        
         if self.weight_decay is None:
             optimizer = optim.Adam(self.parameters(), lr=self.lr)
         else:
             optimizer = optim.Adam(self.parameters(), 
                                    lr=self.lr,
                                    weight_decay=self.weight_decay)
-        return optimizer
+        
+        sch = optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.9)    
+        return {'optimizer': optimizer, 'lr_scheduler': sch}
 
     
         
