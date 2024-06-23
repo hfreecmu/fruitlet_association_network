@@ -5,14 +5,14 @@ cache: &cache True
 checkpoint_dir: 'lightning_logs'
 
 # change these two running bridges vs local
-images_dir: &images_dir '/ocean/projects/agr240003p/hfreeman/t_ro/labels/selected_images/images'
-#images_dir: &images_dir '/home/frc-ag-3/harry_ws/fruitlet_2023/labelling/inhand/tro_final/selected_images/images'
+#images_dir: &images_dir '/ocean/projects/agr240003p/hfreeman/t_ro/labels/selected_images/images'
+images_dir: &images_dir '/home/frc-ag-3/harry_ws/fruitlet_2023/labelling/inhand/tro_final/selected_images/images'
 #batch_size: &batch_size 32
 batch_size: &batch_size 8
 
 image_size: &image_size 128
 vis_encoder_type: &vis_encoder_type 'resnet-34'
-pos_encoder_type: &pos_encoder_type 'resnet-34'
+# pos_encoder_type: &pos_encoder_type 'resnet-34'
 
 match_thresh: &match_thresh 0.5
 
@@ -22,29 +22,35 @@ loss_params: &loss_params
 
 model_params:
   d_model: 256
-  image_size: *image_size
+  # image_size: *image_size
 
-  vis_encoder_args:
-    pretrained: True
-    use_cls: True
-    encoder_type: *vis_encoder_type
+  # vis_encoder_args:
+  #   pretrained: True
+  #   use_cls: True
+  #   encoder_type: *vis_encoder_type
 
   pos_encoder_args:
-    pretrained: True
-    use_cls: True
-    encoder_type: *pos_encoder_type
+    # pretrained: True
+    # use_cls: True
+    # encoder_type: *pos_encoder_type
+    trans_encoder_args:
+      nhead: 8
+      dim_feedforward: 1024
+      dropout: 0.0
+      num_layers: 3
 
   trans_encoder_args:
     nhead: 8
     dim_feedforward: 1024
     dropout: 0.0
-    num_layers: 5
+    num_layers: 3
 
 train_params:
   num_epochs: 100
   batch_size: *batch_size
   lr: 1e-5
-  weight_decay: null
+  weight_decay: 1e-4
+  gamma: null
   augment: True
 
   anno_root: *anno_root

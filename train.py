@@ -14,6 +14,7 @@ def train(train_params,
           loss_params,
           exp_name,
           **kwargs):
+    
     train_dataset = AssociationDataset(**train_params)
     val_dataset = AssociationDataset(**val_params)
 

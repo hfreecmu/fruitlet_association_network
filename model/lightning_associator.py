@@ -92,6 +92,7 @@ class LightningAssociator(L.LightningModule):
                  loss_params,
                  match_thresh,
                  lr=None,
+                 gamma=None,
                  weight_decay=None, 
                  **kwargs):
         super().__init__()
@@ -100,6 +101,7 @@ class LightningAssociator(L.LightningModule):
 
         self.lr = lr
         self.weight_decay = weight_decay
+        self.gamma = gamma
         self.match_thresh = match_thresh
         self.dist_type = loss_params['dist_type']
         self.alpha = loss_params['alpha']
@@ -107,14 +109,14 @@ class LightningAssociator(L.LightningModule):
         self.associator = FruitletAssociator(**kwargs)
 
     def training_step(self, batch, batch_idx):
-        file_keys_0, fruitlet_ims_0, cloud_ims_0, \
+        file_keys_0, fruitlet_ims_0, fruitlet_clouds_0, cloud_is_pads_0, \
         is_pad_0, fruitlet_ids_0, \
-        file_keys_1, fruitlet_ims_1, cloud_ims_1, \
+        file_keys_1, fruitlet_ims_1, fruitlet_clouds_1, cloud_is_pads_1, \
         is_pad_1, fruitlet_ids_1, \
         matches_gt, masks_gt = batch
         
-        data_0 = (fruitlet_ims_0, cloud_ims_0, is_pad_0)
-        data_1 = (fruitlet_ims_1, cloud_ims_1, is_pad_1)
+        data_0 = (fruitlet_ims_0, fruitlet_clouds_0, cloud_is_pads_0, is_pad_0)
+        data_1 = (fruitlet_ims_1, fruitlet_clouds_1, cloud_is_pads_1, is_pad_1)
 
         enc_0, enc_1 = self.associator(data_0, data_1)
 
@@ -123,22 +125,23 @@ class LightningAssociator(L.LightningModule):
                                 self.dist_type,
                                 margin=self.alpha)
        
-        sch = self.lr_schedulers()
-        if self.trainer.is_last_batch and (self.trainer.current_epoch + 1) % 10 == 0:
-            sch.step()
+        if self.gamma is not None:
+            sch = self.lr_schedulers()
+            if self.trainer.is_last_batch and (self.trainer.current_epoch + 1) % 10 == 0:
+                sch.step()
 
         self.log("train_loss", loss, prog_bar=True)
         return loss
 
     def validation_step(self, batch, batch_index):
-        file_keys_0, fruitlet_ims_0, cloud_ims_0, \
+        file_keys_0, fruitlet_ims_0, fruitlet_clouds_0, cloud_is_pads_0, \
         is_pad_0, fruitlet_ids_0, \
-        file_keys_1, fruitlet_ims_1, cloud_ims_1, \
+        file_keys_1, fruitlet_ims_1, fruitlet_clouds_1, cloud_is_pads_1, \
         is_pad_1, fruitlet_ids_1, \
         matches_gt, masks_gt = batch
         
-        data_0 = (fruitlet_ims_0, cloud_ims_0, is_pad_0)
-        data_1 = (fruitlet_ims_1, cloud_ims_1, is_pad_1)
+        data_0 = (fruitlet_ims_0, fruitlet_clouds_0, cloud_is_pads_0, is_pad_0)
+        data_1 = (fruitlet_ims_1, fruitlet_clouds_1, cloud_is_pads_1, is_pad_1)
 
         enc_0, enc_1 = self.associator(data_0, data_1)
 
@@ -158,14 +161,14 @@ class LightningAssociator(L.LightningModule):
         return loss
     
     def test_step(self, batch, batch_idx):
-        file_keys_0, fruitlet_ims_0, cloud_ims_0, \
+        file_keys_0, fruitlet_ims_0, fruitlet_clouds_0, cloud_is_pads_0, \
         is_pad_0, fruitlet_ids_0, \
-        file_keys_1, fruitlet_ims_1, cloud_ims_1, \
+        file_keys_1, fruitlet_ims_1, fruitlet_clouds_1, cloud_is_pads_1, \
         is_pad_1, fruitlet_ids_1, \
         matches_gt, masks_gt = batch
         
-        data_0 = (fruitlet_ims_0, cloud_ims_0, is_pad_0)
-        data_1 = (fruitlet_ims_1, cloud_ims_1, is_pad_1)
+        data_0 = (fruitlet_ims_0, fruitlet_clouds_0, cloud_is_pads_0, is_pad_0)
+        data_1 = (fruitlet_ims_1, fruitlet_clouds_1, cloud_is_pads_1, is_pad_1)
 
         enc_0, enc_1 = self.associator(data_0, data_1)
 
@@ -194,8 +197,11 @@ class LightningAssociator(L.LightningModule):
                                    lr=self.lr,
                                    weight_decay=self.weight_decay)
         
-        sch = optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.9)    
-        return {'optimizer': optimizer, 'lr_scheduler': sch}
+        if self.gamma is not None:
+            sch = optim.lr_scheduler.ExponentialLR(optimizer, gamma=self.gamma)    
+            return {'optimizer': optimizer, 'lr_scheduler': sch}
+        else:
+            return optimizer
 
     
         
