@@ -93,6 +93,7 @@ class LightningAssociator(L.LightningModule):
                  match_thresh,
                  lr=None,
                  gamma=None,
+                 train_step=None,
                  weight_decay=None, 
                  **kwargs):
         super().__init__()
@@ -102,6 +103,7 @@ class LightningAssociator(L.LightningModule):
         self.lr = lr
         self.weight_decay = weight_decay
         self.gamma = gamma
+        self.train_step = train_step
         self.match_thresh = match_thresh
         self.dist_type = loss_params['dist_type']
         self.alpha = loss_params['alpha']
@@ -198,7 +200,9 @@ class LightningAssociator(L.LightningModule):
                                    weight_decay=self.weight_decay)
         
         if self.gamma is not None:
-            sch = optim.lr_scheduler.ExponentialLR(optimizer, gamma=self.gamma)    
+            # sch = optim.lr_scheduler.ExponentialLR(optimizer, gamma=self.gamma)   
+            sch = torch.optim.lr_scheduler.StepLR(step_size=self.train_step,
+                                                  gamma=self.gamma) 
             return {'optimizer': optimizer, 'lr_scheduler': sch}
         else:
             return optimizer
