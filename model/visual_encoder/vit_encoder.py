@@ -16,6 +16,7 @@ class ViTEncoder(nn.Module):
                 global_pool='', # '' means no pooling
                 num_classes=0,            # remove classification layer,
                 img_size=image_size,
+                in_chans=4,
         )
 
         self.use_cls = use_cls

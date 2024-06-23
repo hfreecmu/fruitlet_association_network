@@ -40,13 +40,13 @@ def get_fruitlet_transform(fruitlet_image_size):
 
     return fruitlet_transform
 
-def fruitlet_pad(num_pad, fruitlet_images, fruitlet_clouds, fruitlet_ids):
-    img_height, img_width = fruitlet_images.shape[2:]
-    
-    images_to_cat = torch.zeros(*[num_pad, 3, img_height, img_width], dtype=fruitlet_images.dtype)
+def fruitlet_pad(num_pad, fruitlet_images, fruitlet_clouds, fruitlet_ids):    
+    # to not affect batch norm will select a random fruitlet
+    rand_fruitlet_inds = np.random.randint(low=0, high=fruitlet_images.shape[0], size=num_pad)
+    images_to_cat = torch.clone(fruitlet_images[rand_fruitlet_inds])
     fruitlet_images = torch.vstack([fruitlet_images, images_to_cat])
 
-    clouds_to_cat = np.zeros((num_pad, 8, 3), dtype=fruitlet_clouds.dtype)
+    clouds_to_cat = np.copy(fruitlet_clouds[rand_fruitlet_inds])
     fruitlet_clouds = np.concatenate([fruitlet_clouds, clouds_to_cat])
 
     # making this -2 to avoid confusion
@@ -114,10 +114,10 @@ class AssociationDataset(Dataset):
         fruitlet_ids = []
 
         # if augmnet always rotate?
-        if self.augment:
-            rotation = Rotation.random().as_matrix()
-        else:
-            rotation = np.eye(3)
+        # if self.augment:
+        #     rotation = Rotation.random().as_matrix()
+        # else:
+        #     rotation = np.eye(3)
 
         for det in annotations:
             if det['fruitlet_id'] < 0:
@@ -125,6 +125,16 @@ class AssociationDataset(Dataset):
 
             # get cloud_points
             cloud_points = np.array(det['cloud_points'])
+
+            # normalize
+            cloud_points = (cloud_points - CLOUD_MEANS) / CLOUD_STDS
+
+            # if should flip then cloud points are flipped along the x axis
+            if should_flip:
+                cloud_points[:, 0] = -cloud_points[:, 0]
+
+            # rotate cloud points after flipping
+            # cloud_points = (rotation @ cloud_points.T).T
 
             # get mins and maxes
             mins = cloud_points.min(axis=0)
@@ -142,20 +152,12 @@ class AssociationDataset(Dataset):
                                [maxs[0], maxs[1], mins[2]],
                                [maxs[0], maxs[1], maxs[2]],
                                ])
-            box_3d = (box_3d - CLOUD_MEANS) / CLOUD_STDS
-
-            # if should flip then cloud points are flipped along the x axis
-            if should_flip:
-                box_3d[:, 0] = -box_3d[:, 0]
-
-            # rotate cloud points after flipping
-            box_3d = (rotation @ box_3d.T).T
-
-            # TODO add seg on fruitlet image?
+            
             x0 = det["x0"]
             y0 = det["y0"]
             x1 = det["x1"]
             y1 = det["y1"]
+            seg_inds = np.array(det["seg_inds"])
             fruitlet_id = det["fruitlet_id"]
 
             round_x0 = int(np.round(x0))
@@ -163,8 +165,15 @@ class AssociationDataset(Dataset):
             round_x1 = int(np.round(x1))
             round_y1 = int(np.round(y1))
 
-            #TODO major add seg data
+            
             fruitlet_im = image[:, round_y0:round_y1, round_x0:round_x1]
+            seg_im = torch.zeros_like(image[0:1, :, :])
+            seg_im[:, seg_inds[:, 0], seg_inds[:, 1]] = 1.0
+            seg_im = seg_im[:, round_y0:round_y1, round_x0:round_x1]
+
+            # combine fruitlet im and seg_im
+            fruitlet_im = torch.concatenate([fruitlet_im, seg_im])
+
             # random crop for image
             if self.augment:
                 _, fruitlet_height, fruitlet_width = fruitlet_im.shape
@@ -175,7 +184,6 @@ class AssociationDataset(Dataset):
                 
                 fruitlet_im = torchvision.transforms.functional.crop(fruitlet_im,
                                                                      i, j, h, w)
-                
             _, fruitlet_height, fruitlet_width = fruitlet_im.shape
 
             # pad fruitlet_im
@@ -203,6 +211,9 @@ class AssociationDataset(Dataset):
         fruitlet_ims = torch.stack(fruitlet_ims)
         cloud_boxes = np.stack(cloud_boxes)
         fruitlet_ids = np.array(fruitlet_ids)
+
+        # not sure about this but doing it
+        cloud_boxes = cloud_boxes - cloud_boxes.mean(axis=(0, 1))
 
         # if should flip then flip left and right cloud images
         if should_flip:

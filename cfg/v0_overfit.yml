@@ -1,4 +1,4 @@
-exp_name: 'exp_overfit_augment_with_rot'
+exp_name: 'exp_overfit_adding_vis'
 
 anno_root: &anno_root 'datasets'
 cache: &cache True
@@ -22,12 +22,12 @@ loss_params: &loss_params
 
 model_params:
   d_model: 256
-  # image_size: *image_size
+  image_size: *image_size
 
-  # vis_encoder_args:
-  #   pretrained: True
-  #   use_cls: True
-  #   encoder_type: *vis_encoder_type
+  vis_encoder_args:
+    pretrained: True
+    use_cls: True
+    encoder_type: *vis_encoder_type
 
   pos_encoder_args:
     temperature: 10000
