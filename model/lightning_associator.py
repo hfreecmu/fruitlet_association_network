@@ -109,14 +109,14 @@ class LightningAssociator(L.LightningModule):
         self.associator = FruitletAssociator(**kwargs)
 
     def training_step(self, batch, batch_idx):
-        file_keys_0, fruitlet_ims_0, fruitlet_clouds_0, cloud_is_pads_0, \
+        file_keys_0, fruitlet_ims_0, fruitlet_clouds_0, \
         is_pad_0, fruitlet_ids_0, \
-        file_keys_1, fruitlet_ims_1, fruitlet_clouds_1, cloud_is_pads_1, \
+        file_keys_1, fruitlet_ims_1, fruitlet_clouds_1, \
         is_pad_1, fruitlet_ids_1, \
         matches_gt, masks_gt = batch
         
-        data_0 = (fruitlet_ims_0, fruitlet_clouds_0, cloud_is_pads_0, is_pad_0)
-        data_1 = (fruitlet_ims_1, fruitlet_clouds_1, cloud_is_pads_1, is_pad_1)
+        data_0 = (fruitlet_ims_0, fruitlet_clouds_0, is_pad_0)
+        data_1 = (fruitlet_ims_1, fruitlet_clouds_1, is_pad_1)
 
         enc_0, enc_1 = self.associator(data_0, data_1)
 
@@ -124,7 +124,7 @@ class LightningAssociator(L.LightningModule):
                                 matches_gt, masks_gt,
                                 self.dist_type,
                                 margin=self.alpha)
-       
+
         if self.gamma is not None:
             sch = self.lr_schedulers()
             if self.trainer.is_last_batch and (self.trainer.current_epoch + 1) % 10 == 0:
@@ -134,14 +134,14 @@ class LightningAssociator(L.LightningModule):
         return loss
 
     def validation_step(self, batch, batch_index):
-        file_keys_0, fruitlet_ims_0, fruitlet_clouds_0, cloud_is_pads_0, \
+        file_keys_0, fruitlet_ims_0, fruitlet_clouds_0, \
         is_pad_0, fruitlet_ids_0, \
-        file_keys_1, fruitlet_ims_1, fruitlet_clouds_1, cloud_is_pads_1, \
+        file_keys_1, fruitlet_ims_1, fruitlet_clouds_1, \
         is_pad_1, fruitlet_ids_1, \
         matches_gt, masks_gt = batch
         
-        data_0 = (fruitlet_ims_0, fruitlet_clouds_0, cloud_is_pads_0, is_pad_0)
-        data_1 = (fruitlet_ims_1, fruitlet_clouds_1, cloud_is_pads_1, is_pad_1)
+        data_0 = (fruitlet_ims_0, fruitlet_clouds_0, is_pad_0)
+        data_1 = (fruitlet_ims_1, fruitlet_clouds_1, is_pad_1)
 
         enc_0, enc_1 = self.associator(data_0, data_1)
 
@@ -161,14 +161,14 @@ class LightningAssociator(L.LightningModule):
         return loss
     
     def test_step(self, batch, batch_idx):
-        file_keys_0, fruitlet_ims_0, fruitlet_clouds_0, cloud_is_pads_0, \
+        file_keys_0, fruitlet_ims_0, fruitlet_clouds_0, \
         is_pad_0, fruitlet_ids_0, \
-        file_keys_1, fruitlet_ims_1, fruitlet_clouds_1, cloud_is_pads_1, \
+        file_keys_1, fruitlet_ims_1, fruitlet_clouds_1, \
         is_pad_1, fruitlet_ids_1, \
         matches_gt, masks_gt = batch
         
-        data_0 = (fruitlet_ims_0, fruitlet_clouds_0, cloud_is_pads_0, is_pad_0)
-        data_1 = (fruitlet_ims_1, fruitlet_clouds_1, cloud_is_pads_1, is_pad_1)
+        data_0 = (fruitlet_ims_0, fruitlet_clouds_0, is_pad_0)
+        data_1 = (fruitlet_ims_1, fruitlet_clouds_1, is_pad_1)
 
         enc_0, enc_1 = self.associator(data_0, data_1)
 

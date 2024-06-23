@@ -1,4 +1,4 @@
-exp_name: 'exp_overfit'
+exp_name: 'exp_overfit_augment_with_rot'
 
 anno_root: &anno_root 'datasets'
 cache: &cache True
@@ -30,14 +30,8 @@ model_params:
   #   encoder_type: *vis_encoder_type
 
   pos_encoder_args:
-    # pretrained: True
-    # use_cls: True
-    # encoder_type: *pos_encoder_type
-    trans_encoder_args:
-      nhead: 8
-      dim_feedforward: 1024
-      dropout: 0.0
-      num_layers: 3
+    temperature: 10000
+    orig_resolution: 0.002
 
   trans_encoder_args:
     nhead: 8
@@ -88,3 +82,5 @@ test_params:
   encoder_type: *vis_encoder_type
   cache: *cache
   match_thresh: *match_thresh
+
+  use_icp: False

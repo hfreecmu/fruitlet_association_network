@@ -54,6 +54,6 @@ def test(test_params,
         write_json(output_path, error_files)
 
 if __name__ == "__main__":
-    cfg = OmegaConf.load('cfg/v0_icp.yml')
+    cfg = OmegaConf.load('cfg/v0_overfit.yml')
     print(OmegaConf.to_yaml(cfg))
     test(**cfg)

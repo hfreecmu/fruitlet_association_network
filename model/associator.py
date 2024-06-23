@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 
 from model.transformer.blocks_double import TransformerEncoderLayer, TransformerEncoder
-from model.positional_encoder.cloud_encoder import CloudEncoder
+from model.positional_encoder.cloud_encoder import FixedPositionalEncoder
 
 # TODO linear layer at end?
 class FruitletAssociator(nn.Module):
@@ -21,7 +21,7 @@ class FruitletAssociator(nn.Module):
         #self.vis_encoder = get_vis_encoder(**vis_encoder_args)
 
         pos_encoder_args['d_model'] = d_model
-        self.pos_encoder = CloudEncoder(**pos_encoder_args)
+        self.pos_encoder = FixedPositionalEncoder(**pos_encoder_args)
 
         self.d_model = d_model
         self.scale = d_model**0.5
@@ -34,8 +34,8 @@ class FruitletAssociator(nn.Module):
                                            encoder_norm)
         
     def forward(self, data_0, data_1):
-        _, cloud_0, cloud_pad_0, is_pad_0 = data_0
-        _, cloud_1, cloud_pad_1, is_pad_1 = data_1
+        _, cloud_0, is_pad_0 = data_0
+        _, cloud_1, is_pad_1 = data_1
 
         # num_batches, fruitlets_per_batch, _, im_height, im_width = ims_0.shape
         # full_batch_size = num_batches*fruitlets_per_batch
@@ -61,8 +61,8 @@ class FruitletAssociator(nn.Module):
         # pos_enc_0 = pos_enc_0.view(num_batches, fruitlets_per_batch, self.d_model)
         # pos_enc_1 = pos_enc_1.view(num_batches, fruitlets_per_batch, self.d_model)
 
-        pos_enc_0 = self.pos_encoder(cloud_0, cloud_pad_0)
-        pos_enc_1 = self.pos_encoder(cloud_1, cloud_pad_1)
+        pos_enc_0 = self.pos_encoder(cloud_0)
+        pos_enc_1 = self.pos_encoder(cloud_1)
         
         # vis_enc_0 = torch.zeros_like(pos_enc_0)
         # vis_enc_1 = torch.zeros_like(pos_enc_1)

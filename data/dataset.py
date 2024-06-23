@@ -20,7 +20,8 @@ OPENAI_DATASET_STD = (0.26862954, 0.26130258, 0.27577711)
 
 # for point cloud
 CLOUD_MEANS = [0.0, 0.0, 0.0]
-CLOUD_STDS = [0.01385987, 0.00877404, 0.01885007]
+# CLOUD_STDS = [0.01385987, 0.00877404, 0.01885007]
+CLOUD_STDS = [1.0, 1.0, 1.0]
 #CLOUD_MAX_SIZE = 1500
 
 
@@ -39,25 +40,20 @@ def get_fruitlet_transform(fruitlet_image_size):
 
     return fruitlet_transform
 
-def fruitlet_pad(num_pad, fruitlet_images, fruitlet_clouds, cloud_is_pads, fruitlet_ids,
-                 max_cloud_size):
+def fruitlet_pad(num_pad, fruitlet_images, fruitlet_clouds, fruitlet_ids):
     img_height, img_width = fruitlet_images.shape[2:]
     
     images_to_cat = torch.zeros(*[num_pad, 3, img_height, img_width], dtype=fruitlet_images.dtype)
     fruitlet_images = torch.vstack([fruitlet_images, images_to_cat])
 
-    clouds_to_cat = np.zeros((num_pad, max_cloud_size, 3), dtype=fruitlet_clouds.dtype)
+    clouds_to_cat = np.zeros((num_pad, 8, 3), dtype=fruitlet_clouds.dtype)
     fruitlet_clouds = np.concatenate([fruitlet_clouds, clouds_to_cat])
-
-    # fine having this non padded as key padding mask in transformer should negate it
-    cloud_pads_to_cat = np.zeros((num_pad, max_cloud_size), dtype=cloud_is_pads.dtype)
-    cloud_is_pads = np.concatenate([cloud_is_pads, cloud_pads_to_cat])
 
     # making this -2 to avoid confusion
     ids_to_cat = np.zeros((num_pad), dtype=fruitlet_ids.dtype) - 2
     fruitlet_ids = np.concatenate([fruitlet_ids, ids_to_cat])
 
-    return fruitlet_images, fruitlet_clouds, cloud_is_pads, fruitlet_ids
+    return fruitlet_images, fruitlet_clouds, fruitlet_ids
 
 class AssociationDataset(Dataset):
     def __init__(self,
@@ -71,7 +67,6 @@ class AssociationDataset(Dataset):
                  max_fruitlets=6,
                  min_fruitlets_per_im=3,
                  min_fruitlet_matches=3,
-                 max_cloud_size = 200,
                  **kwargs
                  ):
         
@@ -85,7 +80,6 @@ class AssociationDataset(Dataset):
         self.images_dir = images_dir
         self.max_fruitlets = max_fruitlets
         self.augment = augment
-        self.max_cloud_size = max_cloud_size
 
         if encoder_type == 'vit':
             mean = OPENAI_DATASET_MEAN
@@ -116,8 +110,7 @@ class AssociationDataset(Dataset):
 
         # get fruitlet data
         fruitlet_ims = []
-        fruitlet_clouds = []
-        cloud_is_pads = []
+        cloud_boxes = []
         fruitlet_ids = []
 
         # if augmnet always rotate?
@@ -130,38 +123,33 @@ class AssociationDataset(Dataset):
             if det['fruitlet_id'] < 0:
                 continue
 
-            # get seg_inds and cloud_points
-            # size should be equal
-            # seg_inds = np.array(det['seg_inds'])
+            # get cloud_points
             cloud_points = np.array(det['cloud_points'])
 
-            # first thing is downsample
-            if cloud_points.shape[0] > self.max_cloud_size:
-                pcd = open3d.geometry.PointCloud()
-                pcd.points = open3d.utility.Vector3dVector(cloud_points)
-                pcd_down = pcd.farthest_point_down_sample(self.max_cloud_size)
-                cloud_points = np.array(pcd_down.points)
+            # get mins and maxes
+            mins = cloud_points.min(axis=0)
+            maxs = cloud_points.max(axis=0)
+            if (maxs - mins).max() > 0.05:
+                print('MAJOR WARNING: box dims very')
+                print(annotations_path)
 
-            if cloud_points.shape[0] > self.max_cloud_size:
-                raise RuntimeError('cloud too large should not happen')
-            
-            # normalize before anything
-            cloud_points = (cloud_points - CLOUD_MEANS) / CLOUD_STDS
-
-            full_cloud_points = np.zeros((self.max_cloud_size, 3)) + 10000.0 # so knn doesn't fail
-            full_cloud_pads = np.zeros((self.max_cloud_size), dtype=bool)
-            full_cloud_points[0:cloud_points.shape[0]] = cloud_points
-            full_cloud_pads[cloud_points.shape[0]:] = True
-
-            cloud_points = full_cloud_points
-            cloud_pads = full_cloud_pads
+            box_3d = np.array([[mins[0], mins[1], mins[2]],
+                               [mins[0], mins[1], maxs[2]],
+                               [mins[0], maxs[1], mins[2]],
+                               [mins[0], maxs[1], maxs[2]],
+                               [maxs[0], mins[1], mins[2]],
+                               [maxs[0], mins[1], maxs[2]],
+                               [maxs[0], maxs[1], mins[2]],
+                               [maxs[0], maxs[1], maxs[2]],
+                               ])
+            box_3d = (box_3d - CLOUD_MEANS) / CLOUD_STDS
 
             # if should flip then cloud points are flipped along the x axis
             if should_flip:
-                cloud_points[:, 0] = -cloud_points[:, 0]
+                box_3d[:, 0] = -box_3d[:, 0]
 
             # rotate cloud points after flipping
-            cloud_points = (rotation @ cloud_points.T).T
+            box_3d = (rotation @ box_3d.T).T
 
             # TODO add seg on fruitlet image?
             x0 = det["x0"]
@@ -175,9 +163,9 @@ class AssociationDataset(Dataset):
             round_x1 = int(np.round(x1))
             round_y1 = int(np.round(y1))
 
+            #TODO major add seg data
             fruitlet_im = image[:, round_y0:round_y1, round_x0:round_x1]
             # random crop for image
-            # random permute for cloud
             if self.augment:
                 _, fruitlet_height, fruitlet_width = fruitlet_im.shape
                 new_height = int(np.random.uniform(low=0.9, high=1.0)*fruitlet_height)
@@ -187,10 +175,6 @@ class AssociationDataset(Dataset):
                 
                 fruitlet_im = torchvision.transforms.functional.crop(fruitlet_im,
                                                                      i, j, h, w)
-
-                rand_cloud_inds = np.random.permutation(self.max_cloud_size)
-                cloud_points = cloud_points[rand_cloud_inds]
-                cloud_pads = cloud_pads[rand_cloud_inds]
                 
             _, fruitlet_height, fruitlet_width = fruitlet_im.shape
 
@@ -213,24 +197,22 @@ class AssociationDataset(Dataset):
             fruitlet_im = self.fruitlet_transform(padded_fruitlet_im)
 
             fruitlet_ims.append(fruitlet_im)
-            fruitlet_clouds.append(cloud_points)
-            cloud_is_pads.append(cloud_pads)
+            cloud_boxes.append(box_3d)
             fruitlet_ids.append(fruitlet_id)
 
         fruitlet_ims = torch.stack(fruitlet_ims)
-        fruitlet_clouds = np.stack(fruitlet_clouds)
-        cloud_is_pads = np.stack(cloud_is_pads)
+        cloud_boxes = np.stack(cloud_boxes)
         fruitlet_ids = np.array(fruitlet_ids)
 
         # if should flip then flip left and right cloud images
         if should_flip:
             fruitlet_ims = torch.flip(fruitlet_ims, dims=(-1,))
 
-        return fruitlet_ims, fruitlet_clouds, cloud_is_pads, fruitlet_ids
+        return fruitlet_ims, cloud_boxes, fruitlet_ids
 
     def _get_data(self, entry, should_flip):
         file_key, annotations_path, image_path = entry
-        fruitlet_ims, fruitlet_clouds, cloud_is_pads, fruitlet_ids = self.load_data(annotations_path, image_path, should_flip)
+        fruitlet_ims, cloud_boxes, fruitlet_ids = self.load_data(annotations_path, image_path, should_flip)
 
         is_pad = np.zeros((self.max_fruitlets), dtype=bool)
         num_pad = self.max_fruitlets - fruitlet_ims.shape[0]
@@ -239,21 +221,19 @@ class AssociationDataset(Dataset):
             raise RuntimeError('Too many fruitlets')
         
         if num_pad > 0:
-            fruitlet_ims, fruitlet_clouds, cloud_is_pads, fruitlet_ids = fruitlet_pad(num_pad, fruitlet_ims, fruitlet_clouds, cloud_is_pads, fruitlet_ids,
-                                                                                      self.max_cloud_size)
+            fruitlet_ims, cloud_boxes, fruitlet_ids = fruitlet_pad(num_pad, fruitlet_ims, cloud_boxes, fruitlet_ids)
             is_pad[-num_pad:] = True
 
         if self.augment:
             randperm = torch.randperm(self.max_fruitlets)
             fruitlet_ims = fruitlet_ims[randperm]
-            fruitlet_clouds = fruitlet_clouds[randperm]
-            cloud_is_pads = cloud_is_pads[randperm]
+            cloud_boxes = cloud_boxes[randperm]
             is_pad = is_pad[randperm]
             fruitlet_ids = fruitlet_ids[randperm]
 
-        fruitlet_clouds = fruitlet_clouds.astype(np.float32)
+        cloud_boxes = cloud_boxes.astype(np.float32)
 
-        return file_key, fruitlet_ims, fruitlet_clouds, cloud_is_pads, is_pad, fruitlet_ids
+        return file_key, fruitlet_ims, cloud_boxes, is_pad, fruitlet_ids
 
     def __getitem__(self, index):
         entry_0, entry_1 = self.file_data[index]
@@ -263,8 +243,8 @@ class AssociationDataset(Dataset):
         else:
             should_flip = False
 
-        file_key_0, fruitlet_ims_0, fruitlet_clouds_0, cloud_is_pads_0, is_pad_0, fruitlet_ids_0 = self._get_data(entry_0, should_flip)
-        file_key_1, fruitlet_ims_1, fruitlet_clouds_1, cloud_is_pads_1, is_pad_1, fruitlet_ids_1 = self._get_data(entry_1, should_flip)
+        file_key_0, fruitlet_ims_0, cloud_boxes_0, is_pad_0, fruitlet_ids_0 = self._get_data(entry_0, should_flip)
+        file_key_1, fruitlet_ims_1, cloud_boxes_1, is_pad_1, fruitlet_ids_1 = self._get_data(entry_1, should_flip)
 
         matches_gt = np.zeros((self.max_fruitlets, self.max_fruitlets)).astype(np.float32)
         masks_gt = np.ones((self.max_fruitlets, self.max_fruitlets)).astype(np.float32)
@@ -283,9 +263,9 @@ class AssociationDataset(Dataset):
             ind_1 = np.where(fruitlet_ids_1 == fruitlet_id_0)[0][0]
             matches_gt[ind_0, ind_1] = 1.0
 
-        return file_key_0, fruitlet_ims_0, fruitlet_clouds_0, cloud_is_pads_0, \
+        return file_key_0, fruitlet_ims_0, cloud_boxes_0, \
                is_pad_0, fruitlet_ids_0, \
-               file_key_1, fruitlet_ims_1, fruitlet_clouds_1, cloud_is_pads_1, \
+               file_key_1, fruitlet_ims_1, cloud_boxes_1, \
                is_pad_1, fruitlet_ids_1, \
                matches_gt, masks_gt
 
