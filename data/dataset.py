@@ -107,6 +107,9 @@ class AssociationDataset(Dataset):
 
         # transform image by scaling to 0->1 and normalizing
         image = self.image_transform(image)
+        if self.augment:
+            if np.random.uniform() < 0.5:
+                image = self.random_brightness(image)
 
         # get fruitlet data
         fruitlet_ims = []

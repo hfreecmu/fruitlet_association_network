@@ -1,4 +1,4 @@
-exp_name: 'exp_overfit_adding_vis'
+exp_name: 'exp_brightness_r18'
 
 anno_root: &anno_root 'datasets'
 cache: &cache True
@@ -11,7 +11,7 @@ images_dir: &images_dir '/home/frc-ag-3/harry_ws/fruitlet_2023/labelling/inhand/
 batch_size: &batch_size 8
 
 image_size: &image_size 128
-vis_encoder_type: &vis_encoder_type 'resnet-34'
+vis_encoder_type: &vis_encoder_type 'resnet-18'
 # pos_encoder_type: &pos_encoder_type 'resnet-34'
 
 match_thresh: &match_thresh 0.5
@@ -40,7 +40,7 @@ model_params:
     num_layers: 3
 
 train_params:
-  num_epochs: 100
+  num_epochs: 20
   batch_size: *batch_size
   lr: 1e-5
   weight_decay: 1e-4
