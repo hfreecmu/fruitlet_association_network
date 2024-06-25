@@ -202,7 +202,7 @@ class TransformerEncoderLayer(nn.Module):
             src_q = src_q + self.dropout2(src2)
             src2 = self.norm3(src_q)
             src2 = self.linear2(self.dropout(self.activation(self.linear1(src2))))
-            src_q = src_q + self.droput(src2)
+            src_q = src_q + self.dropout3(src2)
 
             src_res.append(src_q)
 
