@@ -1,4 +1,4 @@
-exp_name: 'exp_full_2_layer'
+exp_name: 'exp_brightness_r18'
 
 anno_root: &anno_root 'datasets'
 cache: &cache True
@@ -12,7 +12,7 @@ batch_size: &batch_size 32
 
 image_size: &image_size 128
 vis_encoder_type: &vis_encoder_type 'resnet-18'
-pos_encoder_type: &pos_encoder_type 'resnet-18'
+# pos_encoder_type: &pos_encoder_type 'resnet-34'
 
 match_thresh: &match_thresh 0.5
 
@@ -35,17 +35,16 @@ model_params:
 
   trans_encoder_args:
     nhead: 8
-    dim_feedforward: 512
+    dim_feedforward: 1024
     dropout: 0.0
-    num_layers: 2
+    num_layers: 3
 
 train_params:
-  num_epochs: 200
+  num_epochs: 20
   batch_size: *batch_size
-  lr: 1e-4
+  lr: 1e-5
   weight_decay: 1e-4
-  gamma: 0.95
-  train_step: 50
+  gamma: null
   augment: True
 
   anno_root: *anno_root
@@ -73,11 +72,11 @@ test_params:
   augment: False
 
   checkpoint_metrics:
-    metric_type: 'f1'
-    is_min: False
+    metric_type: 'val_loss'
+    is_min: True
 
   anno_root: *anno_root
-  anno_subdir: 'train'
+  anno_subdir: 'test'
   images_dir: *images_dir
   image_size: *image_size
   encoder_type: *vis_encoder_type
