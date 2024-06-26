@@ -121,6 +121,28 @@ class AssociationDataset(Dataset):
         #     rotation = Rotation.random().as_matrix()
         # else:
         #     rotation = np.eye(3)
+        if self.augment:
+            rotate_rand = np.random.uniform()
+            rotate_theta = np.deg2rad(np.random.uniform(-10, 10))
+            if rotate_rand < 0.25:
+                rotation = np.array([[np.cos(rotate_theta), -np.sin(rotate_theta), 0],
+                                     [np.sin(rotate_theta), np.cos(rotate_theta), 0],
+                                     [0, 0, 1.0]
+                                     ])
+            elif rotate_rand < 0.5:
+                rotation = np.array([[np.cos(rotate_theta), 0, np.sin(rotate_theta)],
+                                     [0, 1.0, 0],
+                                     [-np.sin(rotate_theta), 0, np.cos(rotate_theta)]])
+            elif rotate_rand < 0.75:
+                rotation = np.array([[1.0, 0, 0],
+                                     [0, np.cos(rotate_theta), -np.sin(rotate_theta)],
+                                     [0, np.sin(rotate_theta), np.cos(rotate_theta)]
+                                     ])
+            else:
+                rotation = np.eye(3)
+        else:
+            rotation = np.eye(3)
+
 
         for det in annotations:
             if det['fruitlet_id'] < 0:
@@ -137,7 +159,7 @@ class AssociationDataset(Dataset):
                 cloud_points[:, 0] = -cloud_points[:, 0]
 
             # rotate cloud points after flipping
-            # cloud_points = (rotation @ cloud_points.T).T
+            cloud_points = (rotation @ cloud_points.T).T
 
             # get mins and maxes
             mins = cloud_points.min(axis=0)

@@ -1,4 +1,4 @@
-exp_name: 'exp_brightness_r18_norm_first'
+exp_name: 'exp_brightness_r18_norm_first_rotate_axis'
 
 anno_root: &anno_root 'datasets'
 cache: &cache True
