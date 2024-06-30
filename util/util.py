@@ -1,7 +1,8 @@
 import os
 import json
 import pickle
-import torch
+from omegaconf import OmegaConf
+
 
 def read_json(path):
     with open(path) as f:
@@ -18,6 +19,15 @@ def write_json(path, data, pretty=False):
 def read_pickle(path):
     with open(path, "rb") as f:
         return pickle.load(f)
+
+def load_cfg(cfg_path):
+    cfg = OmegaConf.load(cfg_path)
+    loss_cfg_path = cfg['loss_path']
+    loss_cfg = OmegaConf.load(loss_cfg_path)
+
+    cfg['loss_params'] = loss_cfg
+
+    return cfg
 
 def get_identifier(file_key):
     identifier = '_'.join(file_key.split('_')[0:2])
@@ -59,23 +69,3 @@ def get_checkpoint_path(checkpoint_dir, exp_name, checkpoint_metrics):
     
     checkpoint_path = os.path.join(checkpoint_dir, best_filename)
     return checkpoint_path
-
-# def save_checkpoint(iter_num, checkpoint_dir, model):
-#     path = os.path.join(checkpoint_dir, 'iter_%d.pth' % iter_num)
-#     torch.save(model.state_dict(), path)
-
-# def load_checkpoint(iter_num, checkpoint_dir, model):
-#     if iter_num == -1:
-#         max_iter = -1
-#         for filename in os.listdir(checkpoint_dir):
-#             if not filename.endswith('.pth'):
-#                 continue
-            
-#             checkpoint_iter = int(filename.split('_')[1].split('.pth')[0])
-#             if checkpoint_iter > max_iter:
-#                 max_iter = checkpoint_iter
-
-#         iter_num = max_iter
-    
-#     path = os.path.join(checkpoint_dir, 'iter_%d.pth' % iter_num)
-#     model.load_state_dict(torch.load(path))

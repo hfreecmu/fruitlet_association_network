@@ -14,7 +14,8 @@ class FruitletAssociator(nn.Module):
                  vis_encoder_args,
                  pos_encoder_args,
                  trans_encoder_args,
-                 match_thresh,
+                 loss_params,
+                 include_bce,
                  **kwargs,
                  ):
         super().__init__()
@@ -39,8 +40,9 @@ class FruitletAssociator(nn.Module):
         self.final_proj = nn.Linear(d_model, d_model)
         self.matchability = nn.Linear(d_model, 1)
         
-        self.match_thresh = match_thresh
+        self.loss_params = loss_params
         self.confidence_pred = MLP(2*d_model, d_model, 1, 3)
+        self.include_bce = include_bce
         
     def forward(self, data_0, data_1, matches_gt):
         ims_0, cloud_0, is_pad_0 = data_0
@@ -70,34 +72,59 @@ class FruitletAssociator(nn.Module):
                                     pos_1=pos_enc_1,
                                     )
         
+        # enc_0 and enc_1 are used for contrastive loss
         enc_0 = enc_0 / self.scale
         enc_1 = enc_1 / self.scale
 
-        #TODO light glue does scale after this
+        # sim, z0, z1 are used for matching loss
         mdesc0, mdesc1 = self.final_proj(enc_0), self.final_proj(enc_1)
-
         sim = torch.einsum("bmd,bnd->bmn", mdesc0, mdesc1)
         z0 = self.matchability(enc_0)
         z1 = self.matchability(enc_1)
 
-        certainties = F.logsigmoid(z0) + F.logsigmoid(z1).transpose(1, 2)
+        if not self.include_bce:
+             return enc_0, enc_1, sim, z0, z1, [], []
+
+        # thse are used for bce_loss. behaviour depends if contrastive or matching
+        if self.loss_params['loss_type'] == 'matching':
+            with torch.no_grad():
+                certainties = F.logsigmoid(z0) + F.logsigmoid(z1).transpose(1, 2)
+
         confidence_tests = []
         gt_confidences = []
         for ind in range(sim.shape[0]):
-            b_sim = sim[ind:ind+1, ~is_pad_0[ind]][:, :, ~is_pad_1[ind]]
-            b_cert = certainties[ind:ind+1, ~is_pad_0[ind]][:, :, ~is_pad_1[ind]]
-            
             b_enc_0 = enc_0[ind, ~is_pad_0[ind]]
             b_enc_1 = enc_1[ind, ~is_pad_1[ind]]
             b_match = matches_gt[ind, ~is_pad_0[ind]][:, ~is_pad_1[ind]]
+            
+            with torch.no_grad():
+                if self.loss_params['loss_type'] == 'matching':
+                    b_sim = sim[ind:ind+1, ~is_pad_0[ind]][:, :, ~is_pad_1[ind]]
+                    b_cert = certainties[ind:ind+1, ~is_pad_0[ind]][:, :, ~is_pad_1[ind]]
 
-            scores0 = F.log_softmax(b_sim, 2)
-            scores1 = F.log_softmax(b_sim.transpose(-1, -2).contiguous(), 2).transpose(-1, -2)
+                    scores0 = F.log_softmax(b_sim, 2)
+                    scores1 = F.log_softmax(b_sim.transpose(-1, -2).contiguous(), 2).transpose(-1, -2)
 
-            scores = scores0 + scores1 + b_cert
-            scores = scores[0]
+                    scores = scores0 + scores1 + b_cert
+                    scores = scores[0]
 
-            match_inds = torch.argwhere(torch.exp(scores) > self.match_thresh)
+                    match_inds = torch.argwhere(torch.exp(scores) > self.self.loss_params['match_thresh'])
+                elif 'contrastive' in self.loss_params['loss_type']:
+                    
+                    features_1 = F.normalize(b_enc_0, p=2, dim=-1)[None]
+                    features_2 = F.normalize(b_enc_1, p=2, dim=-1)[None]
+
+                    if self.loss_params['dist_type'] == 'l2':
+                        distances = torch.cdist(features_1, features_2)[0]
+                    elif self.loss_params['dist_type'] == 'cos':
+                        distances = 1 - torch.einsum("bmd,bnd->bmn", features_1, features_2)[0]
+                    else:
+                        raise RuntimeError('Invalid dist type: ' + self.loss_params['dist_type'])
+                    
+                    match_inds = torch.argwhere(distances < self.loss_params['match_thresh'])
+                else:
+                    raise RuntimeError('Invalid loss type: ' + self.loss_params['loss_type'])
+
 
             if match_inds.shape[0] == 0:
                 continue

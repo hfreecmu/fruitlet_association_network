@@ -4,9 +4,7 @@ from torch.utils.data import Dataset
 import torchvision
 import numpy as np
 import torch.nn.functional as F
-from scipy.spatial.transform import Rotation
 import torchvision.transforms.functional
-import open3d
 
 from util.util import get_identifier, read_json, write_json
 
@@ -20,10 +18,7 @@ OPENAI_DATASET_STD = (0.26862954, 0.26130258, 0.27577711)
 
 # for point cloud
 CLOUD_MEANS = [0.0, 0.0, 0.0]
-# CLOUD_STDS = [0.01385987, 0.00877404, 0.01885007]
 CLOUD_STDS = [1.0, 1.0, 1.0]
-#CLOUD_MAX_SIZE = 1500
-
 
 def get_image_transform(mean, std):
     image_transform = torchvision.transforms.Compose([
@@ -64,13 +59,15 @@ class AssociationDataset(Dataset):
                  encoder_type,
                  augment,
                  cache,
-                 max_fruitlets=6,
-                 min_fruitlets_per_im=3,
-                 min_fruitlet_matches=3,
+                 max_fruitlets,
+                 min_fruitlets_per_im,
+                 min_fruitlet_matches,
                  **kwargs
                  ):
         
         super().__init__()
+
+        assert min_fruitlet_matches <= min_fruitlets_per_im
 
         annotations_dir = os.path.join(anno_root, anno_subdir)
         if not os.path.exists(annotations_dir):
@@ -80,6 +77,7 @@ class AssociationDataset(Dataset):
         self.images_dir = images_dir
         self.max_fruitlets = max_fruitlets
         self.augment = augment
+        self.min_fruitlet_matches = min_fruitlet_matches
 
         if encoder_type == 'vit':
             mean = OPENAI_DATASET_MEAN
@@ -93,14 +91,15 @@ class AssociationDataset(Dataset):
         self.image_transform = get_image_transform(mean, std)
         self.fruitlet_transform = get_fruitlet_transform(image_size)
 
-        self.random_brightness = torchvision.transforms.ColorJitter(brightness=0.1,contrast=0.1,saturation=0.1)
+        self.random_brightness = torchvision.transforms.ColorJitter(brightness=0.1, contrast=0.1,
+                                                                    saturation=0.1, hue=0.05)
 
         self.file_data = self._get_files(min_fruitlets_per_im, min_fruitlet_matches, cache)
 
     def __len__(self):
         return len(self.file_data)
     
-    def load_data(self, annotations_path, image_path, should_flip):
+    def load_data(self, annotations_path, image_path, should_flip, can_drop):
         # read image and annotations
         image = torchvision.io.read_image(image_path)
         annotations = read_json(annotations_path)['annotations']
@@ -116,11 +115,6 @@ class AssociationDataset(Dataset):
         cloud_boxes = []
         fruitlet_ids = []
 
-        # if augmnet always rotate?
-        # if self.augment:
-        #     rotation = Rotation.random().as_matrix()
-        # else:
-        #     rotation = np.eye(3)
         if self.augment:
             rotate_rand = np.random.uniform()
             rotate_theta = np.deg2rad(np.random.uniform(-10, 10))
@@ -161,6 +155,13 @@ class AssociationDataset(Dataset):
             # rotate cloud points after flipping
             cloud_points = (rotation @ cloud_points.T).T
 
+            # rand drop 10% of cloud points
+            # will not have effect unless min / max is dropped
+            if self.augment and np.random.uniform() < 0.6:
+                clouds_to_keep = int(np.round(cloud_points.shape[0]*0.9))
+                rand_inds = np.random.permutation(cloud_points.shape[0])
+                cloud_points = cloud_points[rand_inds[0:clouds_to_keep]] 
+
             # get mins and maxes
             mins = cloud_points.min(axis=0)
             maxs = cloud_points.max(axis=0)
@@ -185,6 +186,12 @@ class AssociationDataset(Dataset):
             seg_inds = np.array(det["seg_inds"])
             fruitlet_id = det["fruitlet_id"]
 
+            # rand drop 10% of seginds
+            if self.augment and np.random.uniform() < 0.2:
+                segs_to_keep = int(np.round(seg_inds.shape[0]*0.9))
+                rand_inds = np.random.permutation(seg_inds.shape[0])
+                seg_inds = seg_inds[rand_inds[0:segs_to_keep]]
+
             round_x0 = int(np.round(x0))
             round_y0 = int(np.round(y0))
             round_x1 = int(np.round(x1))
@@ -200,7 +207,7 @@ class AssociationDataset(Dataset):
             fruitlet_im = torch.concatenate([fruitlet_im, seg_im])
 
             # random crop for image
-            if self.augment:
+            if self.augment and np.random.uniform() < 0.90:
                 _, fruitlet_height, fruitlet_width = fruitlet_im.shape
                 new_height = int(np.random.uniform(low=0.9, high=1.0)*fruitlet_height)
                 new_width = int(np.random.uniform(low=0.9, high=1.0)*fruitlet_width)
@@ -237,6 +244,15 @@ class AssociationDataset(Dataset):
         cloud_boxes = np.stack(cloud_boxes)
         fruitlet_ids = np.array(fruitlet_ids)
 
+        # rand drop a single fruitlet from assoc
+        if self.augment and can_drop \
+            and fruitlet_ims.shape[0] > self.min_fruitlet_matches:
+
+            rand_drop_ind = np.random.randint(0, fruitlet_ims.shape[0])
+            fruitlet_ims = torch.concatenate([fruitlet_ims[0:rand_drop_ind], fruitlet_ims[rand_drop_ind+1:]])
+            cloud_boxes = np.concatenate([cloud_boxes[0:rand_drop_ind], cloud_boxes[rand_drop_ind+1:]])
+            fruitlet_ids = np.concatenate([fruitlet_ids[0:rand_drop_ind], fruitlet_ids[rand_drop_ind+1:]])
+
         # not sure about this but doing it
         cloud_boxes = cloud_boxes - cloud_boxes.mean(axis=(0, 1))
 
@@ -246,9 +262,9 @@ class AssociationDataset(Dataset):
 
         return fruitlet_ims, cloud_boxes, fruitlet_ids
 
-    def _get_data(self, entry, should_flip):
+    def _get_data(self, entry, should_flip, can_drop):
         file_key, annotations_path, image_path = entry
-        fruitlet_ims, cloud_boxes, fruitlet_ids = self.load_data(annotations_path, image_path, should_flip)
+        fruitlet_ims, cloud_boxes, fruitlet_ids = self.load_data(annotations_path, image_path, should_flip, can_drop)
 
         is_pad = np.zeros((self.max_fruitlets), dtype=bool)
         num_pad = self.max_fruitlets - fruitlet_ims.shape[0]
@@ -279,8 +295,16 @@ class AssociationDataset(Dataset):
         else:
             should_flip = False
 
-        file_key_0, fruitlet_ims_0, cloud_boxes_0, is_pad_0, fruitlet_ids_0 = self._get_data(entry_0, should_flip)
-        file_key_1, fruitlet_ims_1, cloud_boxes_1, is_pad_1, fruitlet_ids_1 = self._get_data(entry_1, should_flip)
+        can_drop_0 = False
+        if self.augment:
+            if np.random.uniform() < 0.5:
+                entry_0, entry_1 = entry_1, entry_0
+            
+            if np.random.uniform() < 0.2:
+                can_drop_0 = True
+
+        file_key_0, fruitlet_ims_0, cloud_boxes_0, is_pad_0, fruitlet_ids_0 = self._get_data(entry_0, should_flip, can_drop_0)
+        file_key_1, fruitlet_ims_1, cloud_boxes_1, is_pad_1, fruitlet_ids_1 = self._get_data(entry_1, should_flip, False)
 
         matches_gt = np.zeros((self.max_fruitlets, self.max_fruitlets)).astype(np.float32)
         masks_gt = np.ones((self.max_fruitlets, self.max_fruitlets)).astype(np.float32)

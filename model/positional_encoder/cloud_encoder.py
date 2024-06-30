@@ -2,7 +2,6 @@ import torch
 import torch.nn as nn
 import numpy as np
 
-from model.transformer.blocks_v2 import TransformerEncoder, TransformerEncoderLayer
 from data.dataset import CLOUD_STDS
 
 class FixedPositionalEncoder(nn.Module):

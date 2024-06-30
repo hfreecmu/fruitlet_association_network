@@ -9,14 +9,21 @@ from model.associator import FruitletAssociator
 # reproduces https://stats.stackexchange.com/questions/573581/why-does-contrastive-loss-and-triplet-loss-have-the-margin-element-in-them
 # except the pow
 # also https://medium.com/@maksym.bekuzarov/losses-explained-contrastive-loss-f8f57fe32246
-def contrastive_loss(features1, features2, gt_match, gt_mask, dist_type, margin=1.0,
-                     return_dist=False):
+# but different from https://towardsdatascience.com/contrastive-loss-explaned-159f2d4a87ec
+def contrastive_loss_fn(features1, features2, gt_match, gt_mask, 
+                        loss_params):
+    
+    dist_type = loss_params['dist_type']
+    margin = loss_params['margin']
+
     # Ensure features are normalized
     features1 = F.normalize(features1, p=2, dim=-1)
     features2 = F.normalize(features2, p=2, dim=-1)
 
     if dist_type == 'l2':
         distances = torch.cdist(features1, features2)
+    elif dist_type == 'cos':
+        distances = 1 - torch.einsum("bmd,bnd->bmn", features1, features2)
     else:
         raise RuntimeError('Invalid dist type: ' + dist_type)
     
@@ -35,22 +42,14 @@ def contrastive_loss(features1, features2, gt_match, gt_mask, dist_type, margin=
     pos_loss = match_loss.sum(dim=(1,2)) / pos_vals.sum(dim=(1,2))
     neg_loss = non_match_loss.sum(dim=(1,2)) / neg_vals.sum(dim=(1,2))
     loss = pos_loss + neg_loss
-
-    # Sum the losses over the object dimensions and average over the batch
-    # total_loss = match_loss + non_match_loss
-
-    # loss = total_loss.sum(dim=(1, 2)) / gt_mask.sum(dim=(1, 2))
     
-    if not return_dist:
-        return loss.mean()
-    else:
-        return loss.mean(), distances
+    return loss.mean(), distances
     
-def match_loss(sim, z0, z1, gt_match, is_pad_0, is_pad_1, return_dist=False):
+def match_loss_fn(sim, z0, z1, gt_match, is_pad_0, is_pad_1):
     certainties = F.logsigmoid(z0) + F.logsigmoid(z1).transpose(1, 2)
 
-    if return_dist:
-        dists = torch.zeros_like(sim)
+    # dists
+    dists = torch.zeros_like(sim)
 
     losses = []
     for ind in range(sim.shape[0]):
@@ -69,10 +68,10 @@ def match_loss(sim, z0, z1, gt_match, is_pad_0, is_pad_1, return_dist=False):
         scores[:, :-1, -1] = F.logsigmoid(-b_z0.squeeze(-1))
         scores[:, -1, :-1] = F.logsigmoid(-b_z1.squeeze(-1))
 
-        if return_dist:
-            tmp = dists[ind:ind+1, ~is_pad_0[ind]]
-            tmp[:, :, ~is_pad_1[ind]] = torch.exp(scores[:, 0:-1, 0:-1])
-            dists[ind:ind+1, ~is_pad_0[ind]] = tmp
+        # dists
+        tmp = dists[ind:ind+1, ~is_pad_0[ind]]
+        tmp[:, :, ~is_pad_1[ind]] = torch.exp(scores[:, 0:-1, 0:-1])
+        dists[ind:ind+1, ~is_pad_0[ind]] = tmp
 
         scores = scores[0]
         matches = gt_match[ind, ~is_pad_0[ind]][:, ~is_pad_1[ind]]
@@ -100,26 +99,29 @@ def match_loss(sim, z0, z1, gt_match, is_pad_0, is_pad_1, return_dist=False):
     
     loss = torch.stack(losses).mean()
     
-    if not return_dist:
-        return loss
+    return loss, dists
+
+def get_loss(loss_params, features_0, features_1, 
+             sim, z0, z1, is_pad_0, is_pad_1,
+             matches_gt, masks_gt,
+             pred_confidences, gt_confidences, include_bce, bce_loss_fn):
+    
+    if 'contrastive' in loss_params['loss_type']:
+        match_loss, dists = contrastive_loss_fn(features_0, features_1, matches_gt, masks_gt, 
+                                                loss_params)
+    elif loss_params['loss_type'] == 'matching':
+        match_loss, dists = match_loss_fn(sim, z0, z1, matches_gt, is_pad_0, is_pad_1)
     else:
-        return loss, dists
+        raise RuntimeError('Invalid loss type: ' + loss_params['loss_type'])
+    
+    if include_bce and len(pred_confidences) > 0:
+        bce_loss = bce_loss_fn(pred_confidences, gt_confidences)
+    else:
+        bce_loss = 0.0
 
-# def sigmoid_log_double_softmax(
-#     sim: torch.Tensor, z0: torch.Tensor, z1: torch.Tensor
-# ) -> torch.Tensor:
-#     """create the log assignment matrix from logits and similarity"""
-#     b, m, n = sim.shape
-#     certainties = F.logsigmoid(z0) + F.logsigmoid(z1).transpose(1, 2)
-#     scores0 = F.log_softmax(sim, 2)
-#     scores1 = F.log_softmax(sim.transpose(-1, -2).contiguous(), 2).transpose(-1, -2)
-#     scores = sim.new_full((b, m + 1, n + 1), 0)
-#     scores[:, :m, :n] = scores0 + scores1 + certainties
-#     scores[:, :-1, -1] = F.logsigmoid(-z0.squeeze(-1))
-#     scores[:, -1, :-1] = F.logsigmoid(-z1.squeeze(-1))
-#     return scores
+    return match_loss, bce_loss, dists
 
-def get_metrics(dists, is_pad_0, is_pad_1, matches_gt, match_thresh):
+def get_loss_metrics(dists, is_pad_0, is_pad_1, matches_gt, loss_params):
     dists = dists.cpu().numpy()
     padded_0s = is_pad_0.cpu().numpy()
     padded_1s = is_pad_1.cpu().numpy()
@@ -132,19 +134,16 @@ def get_metrics(dists, is_pad_0, is_pad_1, matches_gt, match_thresh):
         batch_dists = batch_dists[~batch_pad_0s][:, ~batch_pad_1s]
         matches = batch_matches_gt[~batch_pad_0s][:, ~batch_pad_1s]
             
-        #removing below
-        # row_inds, col_inds = linear_sum_assignment(batch_dists)
-        # is_match = torch.zeros_like(matches)
-        # is_match[row_inds, col_inds] = 1.0
-        # is_match[batch_dists > match_thresh] = 0.0
+        if loss_params['use_linear_sum']:
+            row_inds, col_inds = linear_sum_assignment(batch_dists)
+            is_match = torch.zeros_like(matches)
+            is_match[row_inds, col_inds] = 1.0
+            is_match[batch_dists > loss_params['match_thresh']] = 0.0
+        else:
+            #TODO not the best because could assign twice to same one. fix.
+            is_match = torch.zeros_like(matches)
+            is_match[batch_dists > loss_params['match_thresh']] = 1.0
 
-        #replacing
-        is_match = torch.zeros_like(matches)
-        is_match[batch_dists > match_thresh] = 1.0
-
-        # true_pos = matches[row_inds, col_inds].sum()
-        # false_pos = (1-matches)[row_inds, col_inds].sum()
-        # false_neg = matches.sum() - true_pos
         true_pos = (matches * is_match).sum()
         false_pos = ((1 - matches) * is_match).sum()
         false_neg = matches.sum() - true_pos
@@ -164,15 +163,33 @@ def get_metrics(dists, is_pad_0, is_pad_1, matches_gt, match_thresh):
 
     return precision, recall, f1
 
+def get_bce_metrics(pred_confidences, gt_confidences, matches_gt, bce_thresh):
+    pred_confidences = torch.sigmoid(pred_confidences)
+    full_true_pos = gt_confidences[pred_confidences > bce_thresh].sum()
+    full_false_pos = (1-gt_confidences[pred_confidences > bce_thresh]).sum()
+    full_false_neg = matches_gt.sum() - full_true_pos
+
+    if full_true_pos == 0:
+        precision = 0
+        recall = 0
+        f1 = 0
+    else:
+        precision = full_true_pos / (full_true_pos + full_false_pos)
+        recall = full_true_pos / (full_true_pos + full_false_neg)
+        f1 = 2*precision*recall / (precision + recall)
+
+    return precision, recall, f1
+
 class LightningAssociator(L.LightningModule):
     def __init__(self,
                  loss_params,
-                 match_thresh,
+                 model_params,
+                 include_bce,
                  lr=None,
                  gamma=None,
                  train_step=None,
                  weight_decay=None, 
-                 **kwargs):
+                 ):
         super().__init__()
 
         self.save_hyperparameters()
@@ -181,18 +198,21 @@ class LightningAssociator(L.LightningModule):
         self.weight_decay = weight_decay
         self.gamma = gamma
         self.train_step = train_step
-        self.match_thresh = match_thresh
-        self.dist_type = loss_params['dist_type']
-        self.alpha = loss_params['alpha']
+        
+        self.loss_params = loss_params
 
-        self.associator = FruitletAssociator(match_thresh=match_thresh, **kwargs)
-        self.bce_loss = torch.nn.BCEWithLogitsLoss()
+        self.associator = FruitletAssociator(loss_params=loss_params, 
+                                             include_bce=include_bce, 
+                                             **model_params)
+        
+        self.include_bce = include_bce
+        self.bce_loss_fn = torch.nn.BCEWithLogitsLoss()
 
     def training_step(self, batch, batch_idx):
-        file_keys_0, fruitlet_ims_0, fruitlet_clouds_0, \
-        is_pad_0, fruitlet_ids_0, \
-        file_keys_1, fruitlet_ims_1, fruitlet_clouds_1, \
-        is_pad_1, fruitlet_ids_1, \
+        _, fruitlet_ims_0, fruitlet_clouds_0, \
+        is_pad_0, _, \
+        _, fruitlet_ims_1, fruitlet_clouds_1, \
+        is_pad_1, _, \
         matches_gt, masks_gt = batch
         
         data_0 = (fruitlet_ims_0, fruitlet_clouds_0, is_pad_0)
@@ -200,108 +220,101 @@ class LightningAssociator(L.LightningModule):
 
         enc_0, enc_1, sim, z0, z1, pred_confidences, gt_confidences = self.associator(data_0, data_1, matches_gt)
 
-        # loss = contrastive_loss(enc_0, enc_1, 
-        #                         matches_gt, masks_gt,
-        #                         self.dist_type,
-        #                         margin=self.alpha)
+        match_loss, bce_loss, _ = get_loss(self.loss_params, enc_0, enc_1, 
+                                           sim, z0, z1, is_pad_0, is_pad_1,
+                                           matches_gt, masks_gt,
+                                           pred_confidences, gt_confidences, 
+                                           self.include_bce, self.bce_loss_fn)
 
-        m_loss = match_loss(sim, z0, z1, matches_gt, is_pad_0, is_pad_1)
-
-        if len(pred_confidences) > 0:
-            bce_loss = self.bce_loss(pred_confidences, gt_confidences)
-        else:
-            bce_loss = 0.0
-
-        loss = m_loss + bce_loss
-
+        loss = match_loss + bce_loss
         self.log("train_loss", loss, prog_bar=True)
-        self.log("train_m_loss", m_loss)
-        self.log("train_bce_loss", bce_loss)
+        self.log("train_match_loss", match_loss)
+
+        if self.include_bce:
+            self.log("train_bce_loss", bce_loss)
+
         return loss
 
     def validation_step(self, batch, batch_index):
-        file_keys_0, fruitlet_ims_0, fruitlet_clouds_0, \
-        is_pad_0, fruitlet_ids_0, \
-        file_keys_1, fruitlet_ims_1, fruitlet_clouds_1, \
-        is_pad_1, fruitlet_ids_1, \
+        _, fruitlet_ims_0, fruitlet_clouds_0, \
+        is_pad_0, _, \
+        _, fruitlet_ims_1, fruitlet_clouds_1, \
+        is_pad_1, _, \
         matches_gt, masks_gt = batch
         
         data_0 = (fruitlet_ims_0, fruitlet_clouds_0, is_pad_0)
         data_1 = (fruitlet_ims_1, fruitlet_clouds_1, is_pad_1)
 
         enc_0, enc_1, sim, z0, z1, pred_confidences, gt_confidences = self.associator(data_0, data_1, matches_gt)
-
-        # loss, dists = contrastive_loss(enc_0, enc_1, 
-        #                         matches_gt, masks_gt,
-        #                         self.dist_type,
-        #                         margin=self.alpha,
-        #                         return_dist=True)
-
-        m_loss, dists = match_loss(sim, z0, z1, matches_gt, is_pad_0, is_pad_1, return_dist=True)
         
-        if len(pred_confidences) > 0:
-            bce_loss = self.bce_loss(pred_confidences, gt_confidences)
-        else:
-            bce_loss = 0.0
-
-        loss = m_loss + bce_loss
-
-        precision, recall, f1 = get_metrics(dists, is_pad_0, is_pad_1,
-                                            matches_gt, self.match_thresh)
+        match_loss, bce_loss, dists = get_loss(self.loss_params, enc_0, enc_1, 
+                                           sim, z0, z1, is_pad_0, is_pad_1,
+                                           matches_gt, masks_gt,
+                                           pred_confidences, gt_confidences, 
+                                           self.include_bce, self.bce_loss_fn)
         
+
+        loss = match_loss + bce_loss
         self.log("val_loss", loss, prog_bar=True)
-        self.log("val_m_loss", m_loss)
-        self.log("val_bce_loss", bce_loss)
+        self.log("val_match_loss", match_loss)
+
+        precision, recall, f1 = get_loss_metrics(dists, is_pad_0, is_pad_1,
+                                                 matches_gt, self.loss_params)
+        
         self.log('precision', precision)
         self.log('recall', recall)
         self.log('f1', f1, prog_bar=True)
+
+        if self.include_bce:
+            self.log("val_bce_loss", bce_loss)
+
+            bce_precision, bce_recall, bce_f1 = get_bce_metrics(pred_confidences, gt_confidences,
+                                                                matches_gt, self.loss_params['bce_thresh'])
+            
+            self.log('bce_precision', bce_precision)
+            self.log('bce_recall', bce_recall)
+            self.log('bce_f1', bce_f1, prog_bar=True)
+        
         return loss
     
     def test_step(self, batch, batch_idx):
-        file_keys_0, fruitlet_ims_0, fruitlet_clouds_0, \
-        is_pad_0, fruitlet_ids_0, \
-        file_keys_1, fruitlet_ims_1, fruitlet_clouds_1, \
-        is_pad_1, fruitlet_ids_1, \
+        _, fruitlet_ims_0, fruitlet_clouds_0, \
+        is_pad_0, _, \
+        _, fruitlet_ims_1, fruitlet_clouds_1, \
+        is_pad_1, _, \
         matches_gt, masks_gt = batch
         
         data_0 = (fruitlet_ims_0, fruitlet_clouds_0, is_pad_0)
         data_1 = (fruitlet_ims_1, fruitlet_clouds_1, is_pad_1)
 
         enc_0, enc_1, sim, z0, z1, pred_confidences, gt_confidences = self.associator(data_0, data_1, matches_gt)
-
-        # loss, dists = contrastive_loss(enc_0, enc_1, 
-        #                         matches_gt, masks_gt,
-        #                         self.dist_type,
-        #                         margin=self.alpha,
-        #                         return_dist=True)
-
-        loss, dists = match_loss(sim, z0, z1, matches_gt, is_pad_0, is_pad_1, return_dist=True)
         
-        # precision, recall, f1 = get_metrics(dists, is_pad_0, is_pad_1,
-        #                                     matches_gt, self.match_thresh)
+        match_loss, bce_loss, dists = get_loss(self.loss_params, enc_0, enc_1, 
+                                           sim, z0, z1, is_pad_0, is_pad_1,
+                                           matches_gt, masks_gt,
+                                           pred_confidences, gt_confidences, 
+                                           self.include_bce, self.bce_loss_fn)
+        
 
-        pred_confidences = torch.sigmoid(pred_confidences)
-        thresh = 0.7
-        full_true_pos = gt_confidences[pred_confidences > thresh].sum()
-        full_false_pos = (1-gt_confidences[pred_confidences > thresh]).sum()
-        full_false_neg = matches_gt.sum() - full_true_pos
+        loss = match_loss + bce_loss
 
-        if full_true_pos == 0:
-            precision = 0
-            recall = 0
-            f1 = 0
-        else:
-            precision = full_true_pos / (full_true_pos + full_false_pos)
-            recall = full_true_pos / (full_true_pos + full_false_neg)
-            f1 = 2*precision*recall / (precision + recall)
-            
-        self.log("test_loss", loss)
+        precision, recall, f1 = get_loss_metrics(dists, is_pad_0, is_pad_1,
+                                                 matches_gt, self.loss_params)
+        
         self.log('precision', precision)
         self.log('recall', recall)
         self.log('f1', f1)
+
+        if self.include_bce:
+            bce_precision, bce_recall, bce_f1 = get_bce_metrics(pred_confidences, gt_confidences,
+                                                                matches_gt, self.loss_params['bce_thresh'])
+            
+            self.log('bce_precision', bce_precision)
+            self.log('bce_recall', bce_recall)
+            self.log('bce_f1', bce_f1)
+        
         return loss
-
-
+    
     def configure_optimizers(self):
         
         if self.weight_decay is None:
@@ -312,8 +325,8 @@ class LightningAssociator(L.LightningModule):
                                    weight_decay=self.weight_decay)
         
         if self.gamma is not None:
-            # sch = optim.lr_scheduler.ExponentialLR(optimizer, gamma=self.gamma)   
-            scheduler = torch.optim.lr_scheduler.StepLR(step_size=self.train_step,
+            scheduler = torch.optim.lr_scheduler.StepLR(optimizer,
+                                                        step_size=self.train_step,
                                                         gamma=self.gamma) 
             return [optimizer], [scheduler]
         else:

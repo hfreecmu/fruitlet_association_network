@@ -1,0 +1,7 @@
+loss_type: 'contrastive_l2'
+match_thresh: 0.5
+use_linear_sum: True
+bce_thresh: 0.6
+
+dist_type: 'l2'
+margin: 1.0

@@ -1,0 +1,4 @@
+loss_type: 'matching'
+match_thresh: 0.1
+use_linear_sum: False
+bce_thresh: 0.6
