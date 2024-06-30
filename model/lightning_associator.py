@@ -9,6 +9,7 @@ from model.associator import FruitletAssociator
 # reproduces https://stats.stackexchange.com/questions/573581/why-does-contrastive-loss-and-triplet-loss-have-the-margin-element-in-them
 # except the pow
 # also https://medium.com/@maksym.bekuzarov/losses-explained-contrastive-loss-f8f57fe32246
+# also https://lilianweng.github.io/posts/2021-05-31-contrastive/
 # but different from https://towardsdatascience.com/contrastive-loss-explaned-159f2d4a87ec
 def contrastive_loss_fn(features1, features2, gt_match, gt_mask, 
                         loss_params):
@@ -22,16 +23,19 @@ def contrastive_loss_fn(features1, features2, gt_match, gt_mask,
 
     if dist_type == 'l2':
         distances = torch.cdist(features1, features2)
+        # Compute the contrastive loss
+        match_loss = gt_match * torch.square(distances)
+        non_match_loss = (1 - gt_match) * torch.square(torch.clamp(margin - distances, min=0.0))
     elif dist_type == 'cos':
-        distances = 1 - torch.einsum("bmd,bnd->bmn", features1, features2)
+        cosines = torch.einsum("bmd,bnd->bmn", features1, features2)
+        distances = 1 - cosines
+        # Compute the contrastive loss
+        match_loss = gt_match * distances
+        non_match_loss = (1 - gt_match) * torch.clamp(cosines - margin, min=0.0)
     else:
         raise RuntimeError('Invalid dist type: ' + dist_type)
     
-    # Compute the contrastive loss
-    match_loss = gt_match * torch.square(distances)
-    non_match_loss = (1 - gt_match) * torch.square(torch.clamp(margin - distances, min=0.0))
-    #non_match_loss = (1 - gt_match) * torch.clamp(margin - distances, min=0.0)
-    
+        
     # Apply the gt_mask to ignore padded objects
     match_loss = match_loss * gt_mask
     non_match_loss = non_match_loss * gt_mask

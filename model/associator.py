@@ -6,7 +6,6 @@ from model.transformer.blocks_double import TransformerEncoderLayer, Transformer
 from model.positional_encoder.cloud_encoder import FixedPositionalEncoder
 from model.model_util import get_vis_encoder
 
-# TODO linear layer at end?
 class FruitletAssociator(nn.Module):
     def __init__(self,
                  d_model,
@@ -78,7 +77,8 @@ class FruitletAssociator(nn.Module):
 
         # sim, z0, z1 are used for matching loss
         mdesc0, mdesc1 = self.final_proj(enc_0), self.final_proj(enc_1)
-        sim = torch.einsum("bmd,bnd->bmn", mdesc0, mdesc1)
+        #sim = torch.einsum("bmd,bnd->bmn", mdesc0, mdesc1)
+        sim = -torch.cdist(mdesc0, mdesc1)
         z0 = self.matchability(enc_0)
         z1 = self.matchability(enc_1)
 
@@ -108,7 +108,7 @@ class FruitletAssociator(nn.Module):
                     scores = scores0 + scores1 + b_cert
                     scores = scores[0]
 
-                    match_inds = torch.argwhere(torch.exp(scores) > self.self.loss_params['match_thresh'])
+                    match_inds = torch.argwhere(torch.exp(scores) > self.loss_params['match_thresh'])
                 elif 'contrastive' in self.loss_params['loss_type']:
                     
                     features_1 = F.normalize(b_enc_0, p=2, dim=-1)[None]
@@ -116,12 +116,12 @@ class FruitletAssociator(nn.Module):
 
                     if self.loss_params['dist_type'] == 'l2':
                         distances = torch.cdist(features_1, features_2)[0]
+                        match_inds = torch.argwhere(distances < self.loss_params['match_thresh'])
                     elif self.loss_params['dist_type'] == 'cos':
-                        distances = 1 - torch.einsum("bmd,bnd->bmn", features_1, features_2)[0]
+                        cosines = torch.einsum("bmd,bnd->bmn", features_1, features_2)[0]
+                        match_inds = torch.argwhere(cosines > self.loss_params['match_thresh'])
                     else:
                         raise RuntimeError('Invalid dist type: ' + self.loss_params['dist_type'])
-                    
-                    match_inds = torch.argwhere(distances < self.loss_params['match_thresh'])
                 else:
                     raise RuntimeError('Invalid loss type: ' + self.loss_params['loss_type'])
 

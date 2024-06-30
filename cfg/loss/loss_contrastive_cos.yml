@@ -4,4 +4,4 @@ use_linear_sum: True
 bce_thresh: 0.6
 
 dist_type: 'cos'
-margin: 1.0
+margin: 0.5
