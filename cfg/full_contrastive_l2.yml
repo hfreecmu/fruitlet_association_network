@@ -57,7 +57,7 @@ train_params:
   augment: True
 
   anno_root: *anno_root
-  anno_subdir: 'mini_train'
+  anno_subdir: 'train'
   images_dir: *images_dir
   image_size: *image_size
   encoder_type: *vis_encoder_type
@@ -71,7 +71,7 @@ val_params:
   augment: False
 
   anno_root: *anno_root
-  anno_subdir: 'mini_val'
+  anno_subdir: 'val'
   images_dir: *images_dir
   image_size: *image_size
   encoder_type: *vis_encoder_type
@@ -85,7 +85,7 @@ test_params:
   augment: False
 
   anno_root: *anno_root
-  anno_subdir: 'mini_val'
+  anno_subdir: 'test'
   images_dir: *images_dir
   image_size: *image_size
   encoder_type: *vis_encoder_type
