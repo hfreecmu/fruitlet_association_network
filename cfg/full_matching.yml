@@ -1,0 +1,96 @@
+### Params to change between exps:
+exp_name: 'matching_full'
+loss_path: 'cfg/loss/loss_matching.yml'
+###
+
+### change these two running bridges vs local
+# images and batch size
+images_dir: &images_dir '/ocean/projects/agr240003p/hfreeman/t_ro/labels/selected_images/images'
+#images_dir: &images_dir '/home/frc-ag-3/harry_ws/fruitlet_2023/labelling/inhand/tro_final/selected_images/images'
+batch_size: &batch_size 32
+#batch_size: &batch_size 8
+###
+
+# data and logging
+anno_root: &anno_root 'datasets'
+cache: &cache True
+checkpoint_dir: 'lightning_logs'
+image_size: &image_size 128
+vis_encoder_type: &vis_encoder_type 'resnet-18'
+
+# dataset confg
+max_fruitlets: &max_fruitlets 6
+min_fruitlets_per_im: &min_fruitlets_per_im 3
+min_fruitlet_matches: &min_fruitlet_matches 2
+
+# checkpoint metrics
+checkpoint_metrics:
+    metric_type: 'val_loss'
+    is_min: True
+
+model_params:
+  d_model: 256
+  image_size: *image_size
+
+  vis_encoder_args:
+    pretrained: True
+    use_cls: True
+    encoder_type: *vis_encoder_type
+
+  pos_encoder_args:
+    temperature: 10000
+    orig_resolution: 0.002
+
+  trans_encoder_args:
+    nhead: 8
+    dim_feedforward: 1024
+    dropout: 0.0
+    normalize_before: True
+    num_layers: 3
+
+train_params:
+  num_epochs: 40
+  lr: 1e-4
+  weight_decay: 1e-5
+  gamma: 0.9
+  train_step: 5
+  augment: True
+
+  anno_root: *anno_root
+  anno_subdir: 'train'
+  images_dir: *images_dir
+  image_size: *image_size
+  encoder_type: *vis_encoder_type
+  cache: *cache
+
+  max_fruitlets: *max_fruitlets
+  min_fruitlets_per_im: *min_fruitlets_per_im
+  min_fruitlet_matches: *min_fruitlet_matches
+
+val_params:
+  augment: False
+
+  anno_root: *anno_root
+  anno_subdir: 'val'
+  images_dir: *images_dir
+  image_size: *image_size
+  encoder_type: *vis_encoder_type
+  cache: *cache
+
+  max_fruitlets: *max_fruitlets
+  min_fruitlets_per_im: *min_fruitlets_per_im
+  min_fruitlet_matches: *min_fruitlet_matches
+
+test_params:
+  augment: False
+
+  anno_root: *anno_root
+  anno_subdir: 'test'
+  images_dir: *images_dir
+  image_size: *image_size
+  encoder_type: *vis_encoder_type
+  cache: *cache
+
+  max_fruitlets: *max_fruitlets
+  min_fruitlets_per_im: *min_fruitlets_per_im
+  min_fruitlet_matches: *min_fruitlet_matches
