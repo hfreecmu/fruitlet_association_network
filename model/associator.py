@@ -1,7 +1,8 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
-from model.transformer.blocks_double import TransformerEncoderLayer, TransformerEncoder
+from model.transformer.blocks_double import TransformerEncoderLayer, TransformerEncoder, MLP
 from model.positional_encoder.cloud_encoder import FixedPositionalEncoder
 from model.model_util import get_vis_encoder
 
@@ -13,6 +14,7 @@ class FruitletAssociator(nn.Module):
                  vis_encoder_args,
                  pos_encoder_args,
                  trans_encoder_args,
+                 match_thresh,
                  **kwargs,
                  ):
         super().__init__()
@@ -37,7 +39,10 @@ class FruitletAssociator(nn.Module):
         self.final_proj = nn.Linear(d_model, d_model)
         self.matchability = nn.Linear(d_model, 1)
         
-    def forward(self, data_0, data_1):
+        self.match_thresh = match_thresh
+        self.confidence_pred = MLP(2*d_model, d_model, 1, 3)
+        
+    def forward(self, data_0, data_1, matches_gt):
         ims_0, cloud_0, is_pad_0 = data_0
         ims_1, cloud_1, is_pad_1 = data_1
 
@@ -68,11 +73,50 @@ class FruitletAssociator(nn.Module):
         enc_0 = enc_0 / self.scale
         enc_1 = enc_1 / self.scale
 
+        #TODO light glue does scale after this
         mdesc0, mdesc1 = self.final_proj(enc_0), self.final_proj(enc_1)
 
         sim = torch.einsum("bmd,bnd->bmn", mdesc0, mdesc1)
         z0 = self.matchability(enc_0)
         z1 = self.matchability(enc_1)
 
-        return enc_0, enc_1, sim, z0, z1
+        certainties = F.logsigmoid(z0) + F.logsigmoid(z1).transpose(1, 2)
+        confidence_tests = []
+        gt_confidences = []
+        for ind in range(sim.shape[0]):
+            b_sim = sim[ind:ind+1, ~is_pad_0[ind]][:, :, ~is_pad_1[ind]]
+            b_cert = certainties[ind:ind+1, ~is_pad_0[ind]][:, :, ~is_pad_1[ind]]
+            
+            b_enc_0 = enc_0[ind, ~is_pad_0[ind]]
+            b_enc_1 = enc_1[ind, ~is_pad_1[ind]]
+            b_match = matches_gt[ind, ~is_pad_0[ind]][:, ~is_pad_1[ind]]
+
+            scores0 = F.log_softmax(b_sim, 2)
+            scores1 = F.log_softmax(b_sim.transpose(-1, -2).contiguous(), 2).transpose(-1, -2)
+
+            scores = scores0 + scores1 + b_cert
+            scores = scores[0]
+
+            match_inds = torch.argwhere(torch.exp(scores) > self.match_thresh)
+
+            if match_inds.shape[0] == 0:
+                continue
+
+            enc_0s_to_cat = b_enc_0[match_inds[:, 0]]
+            enc_1s_to_cat = b_enc_1[match_inds[:, 1]]
+            is_match = b_match[match_inds[:, 0], match_inds[:, 1]]
+            comb_encs = torch.concatenate([enc_0s_to_cat, enc_1s_to_cat], dim=-1)
+            confidence_tests.append(comb_encs)
+            gt_confidences.append(is_match)
+
+        if len(confidence_tests) > 0:
+            confidence_tests = torch.concatenate(confidence_tests)
+            gt_confidences = torch.concatenate(gt_confidences)
+
+            pred_confidences = self.confidence_pred(confidence_tests).squeeze(-1)
+        else:
+            pred_confidences = []
+            gt_confidences = []
+
+        return enc_0, enc_1, sim, z0, z1, pred_confidences, gt_confidences
         

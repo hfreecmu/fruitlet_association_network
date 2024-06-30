@@ -32,7 +32,6 @@ def train(train_params,
     model = LightningAssociator(lr=train_params['lr'],
                                 weight_decay=train_params['weight_decay'],
                                 loss_params=loss_params,
-                                match_thresh=train_params['match_thresh'],
                                 **model_params)
     
     filename_val = '{epoch:02d}-{val_loss:.2f}'

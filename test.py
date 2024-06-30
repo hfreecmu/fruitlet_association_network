@@ -31,7 +31,6 @@ def test(test_params,
 
         model = LightningAssociator.load_from_checkpoint(checkpoint_path, 
                                                          loss_params=loss_params, 
-                                                         match_thresh=test_params['match_thresh'],
                                                          **model_params)
         trainer = L.Trainer(enable_checkpointing=False, logger=False)
     else:

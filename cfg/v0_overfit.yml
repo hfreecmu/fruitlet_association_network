@@ -1,4 +1,4 @@
-exp_name: 'debug_v2'
+exp_name: 'conf_pred'
 
 anno_root: &anno_root 'datasets'
 cache: &cache True
@@ -24,6 +24,7 @@ loss_params: &loss_params
 model_params:
   d_model: 256
   image_size: *image_size
+  match_thresh: *match_thresh
 
   vis_encoder_args:
     pretrained: True

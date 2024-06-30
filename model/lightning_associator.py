@@ -185,7 +185,8 @@ class LightningAssociator(L.LightningModule):
         self.dist_type = loss_params['dist_type']
         self.alpha = loss_params['alpha']
 
-        self.associator = FruitletAssociator(**kwargs)
+        self.associator = FruitletAssociator(match_thresh=match_thresh, **kwargs)
+        self.bce_loss = torch.nn.BCEWithLogitsLoss()
 
     def training_step(self, batch, batch_idx):
         file_keys_0, fruitlet_ims_0, fruitlet_clouds_0, \
@@ -197,16 +198,25 @@ class LightningAssociator(L.LightningModule):
         data_0 = (fruitlet_ims_0, fruitlet_clouds_0, is_pad_0)
         data_1 = (fruitlet_ims_1, fruitlet_clouds_1, is_pad_1)
 
-        enc_0, enc_1, sim, z0, z1 = self.associator(data_0, data_1)
+        enc_0, enc_1, sim, z0, z1, pred_confidences, gt_confidences = self.associator(data_0, data_1, matches_gt)
 
         # loss = contrastive_loss(enc_0, enc_1, 
         #                         matches_gt, masks_gt,
         #                         self.dist_type,
         #                         margin=self.alpha)
 
-        loss = match_loss(sim, z0, z1, matches_gt, is_pad_0, is_pad_1)
+        m_loss = match_loss(sim, z0, z1, matches_gt, is_pad_0, is_pad_1)
+
+        if len(pred_confidences) > 0:
+            bce_loss = self.bce_loss(pred_confidences, gt_confidences)
+        else:
+            bce_loss = 0.0
+
+        loss = m_loss + bce_loss
 
         self.log("train_loss", loss, prog_bar=True)
+        self.log("train_m_loss", m_loss)
+        self.log("train_bce_loss", bce_loss)
         return loss
 
     def validation_step(self, batch, batch_index):
@@ -219,7 +229,7 @@ class LightningAssociator(L.LightningModule):
         data_0 = (fruitlet_ims_0, fruitlet_clouds_0, is_pad_0)
         data_1 = (fruitlet_ims_1, fruitlet_clouds_1, is_pad_1)
 
-        enc_0, enc_1, sim, z0, z1 = self.associator(data_0, data_1)
+        enc_0, enc_1, sim, z0, z1, pred_confidences, gt_confidences = self.associator(data_0, data_1, matches_gt)
 
         # loss, dists = contrastive_loss(enc_0, enc_1, 
         #                         matches_gt, masks_gt,
@@ -227,12 +237,21 @@ class LightningAssociator(L.LightningModule):
         #                         margin=self.alpha,
         #                         return_dist=True)
 
-        loss, dists = match_loss(sim, z0, z1, matches_gt, is_pad_0, is_pad_1, return_dist=True)
+        m_loss, dists = match_loss(sim, z0, z1, matches_gt, is_pad_0, is_pad_1, return_dist=True)
         
+        if len(pred_confidences) > 0:
+            bce_loss = self.bce_loss(pred_confidences, gt_confidences)
+        else:
+            bce_loss = 0.0
+
+        loss = m_loss + bce_loss
+
         precision, recall, f1 = get_metrics(dists, is_pad_0, is_pad_1,
                                             matches_gt, self.match_thresh)
         
         self.log("val_loss", loss, prog_bar=True)
+        self.log("val_m_loss", m_loss)
+        self.log("val_bce_loss", bce_loss)
         self.log('precision', precision)
         self.log('recall', recall)
         self.log('f1', f1, prog_bar=True)
@@ -248,7 +267,7 @@ class LightningAssociator(L.LightningModule):
         data_0 = (fruitlet_ims_0, fruitlet_clouds_0, is_pad_0)
         data_1 = (fruitlet_ims_1, fruitlet_clouds_1, is_pad_1)
 
-        enc_0, enc_1, sim, z0, z1 = self.associator(data_0, data_1)
+        enc_0, enc_1, sim, z0, z1, pred_confidences, gt_confidences = self.associator(data_0, data_1, matches_gt)
 
         # loss, dists = contrastive_loss(enc_0, enc_1, 
         #                         matches_gt, masks_gt,
@@ -258,8 +277,23 @@ class LightningAssociator(L.LightningModule):
 
         loss, dists = match_loss(sim, z0, z1, matches_gt, is_pad_0, is_pad_1, return_dist=True)
         
-        precision, recall, f1 = get_metrics(dists, is_pad_0, is_pad_1,
-                                            matches_gt, self.match_thresh)
+        # precision, recall, f1 = get_metrics(dists, is_pad_0, is_pad_1,
+        #                                     matches_gt, self.match_thresh)
+
+        pred_confidences = torch.sigmoid(pred_confidences)
+        thresh = 0.7
+        full_true_pos = gt_confidences[pred_confidences > thresh].sum()
+        full_false_pos = (1-gt_confidences[pred_confidences > thresh]).sum()
+        full_false_neg = matches_gt.sum() - full_true_pos
+
+        if full_true_pos == 0:
+            precision = 0
+            recall = 0
+            f1 = 0
+        else:
+            precision = full_true_pos / (full_true_pos + full_false_pos)
+            recall = full_true_pos / (full_true_pos + full_false_neg)
+            f1 = 2*precision*recall / (precision + recall)
             
         self.log("test_loss", loss)
         self.log('precision', precision)
