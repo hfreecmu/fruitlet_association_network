@@ -1,4 +1,4 @@
-exp_name: 'exp_brightness_r18_norm_first_rotate_axis'
+exp_name: 'exp_softmax_train'
 
 anno_root: &anno_root 'datasets'
 cache: &cache True
@@ -14,7 +14,8 @@ image_size: &image_size 128
 vis_encoder_type: &vis_encoder_type 'resnet-18'
 # pos_encoder_type: &pos_encoder_type 'resnet-34'
 
-match_thresh: &match_thresh 0.5
+# match_thresh: &match_thresh 0.5
+match_thresh: &match_thresh 0.1
 
 loss_params: &loss_params
   dist_type: 'l2'
@@ -41,11 +42,12 @@ model_params:
     num_layers: 3
 
 train_params:
-  num_epochs: 20
+  num_epochs: 200
   batch_size: *batch_size
-  lr: 1e-5
-  weight_decay: 1e-4
-  gamma: null
+  lr: 1e-4
+  weight_decay: 1e-5
+  gamma: 0.9
+  train_step: 5
   augment: True
 
   anno_root: *anno_root

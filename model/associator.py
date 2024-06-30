@@ -34,6 +34,9 @@ class FruitletAssociator(nn.Module):
                                            trans_encoder_args['num_layers'], 
                                            encoder_norm)
         
+        self.final_proj = nn.Linear(d_model, d_model)
+        self.matchability = nn.Linear(d_model, 1)
+        
     def forward(self, data_0, data_1):
         ims_0, cloud_0, is_pad_0 = data_0
         ims_1, cloud_1, is_pad_1 = data_1
@@ -65,5 +68,11 @@ class FruitletAssociator(nn.Module):
         enc_0 = enc_0 / self.scale
         enc_1 = enc_1 / self.scale
 
-        return enc_0, enc_1
+        mdesc0, mdesc1 = self.final_proj(enc_0), self.final_proj(enc_1)
+
+        sim = torch.einsum("bmd,bnd->bmn", mdesc0, mdesc1)
+        z0 = self.matchability(enc_0)
+        z1 = self.matchability(enc_1)
+
+        return enc_0, enc_1, sim, z0, z1
         

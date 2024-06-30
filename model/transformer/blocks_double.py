@@ -206,7 +206,9 @@ class TransformerEncoderLayer(nn.Module):
 
             src_res.append(src_q)
 
-        return src_res[0], src_res[1]
+        src_0, src_1 = src_res
+
+        return src_0, src_1
     
     def forward(self,
                 src_0,

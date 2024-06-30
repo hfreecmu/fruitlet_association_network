@@ -38,12 +38,12 @@ def train(train_params,
     filename_val = '{epoch:02d}-{val_loss:.2f}'
     checkpoint_callback_val = ModelCheckpoint(save_top_k=2, monitor="val_loss", filename=filename_val)
     filename_f1 = '{epoch:02d}-{f1:.2f}'
-    checkpoint_callback_f1 = ModelCheckpoint(save_top_k=2, monitor="f1", mode='max', filename=filename_f1)
+    #checkpoint_callback_f1 = ModelCheckpoint(save_top_k=2, monitor="f1", mode='max', filename=filename_f1)
 
     logger = TensorBoardLogger(save_dir=os.getcwd(), version=exp_name)
     
     trainer = L.Trainer(max_epochs=train_params['num_epochs'], 
-                        callbacks=[checkpoint_callback_val, checkpoint_callback_f1],
+                        callbacks=[checkpoint_callback_val],# checkpoint_callback_f1],
                         logger=logger, log_every_n_steps=5)
 
     trainer.fit(model=model, 
