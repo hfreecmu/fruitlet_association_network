@@ -100,7 +100,7 @@ class FruitletAssociator(nn.Module):
 
         confidence_tests = []
         gt_confidences = []
-        for ind in range(sim.shape[0]):
+        for ind in range(enc_0.shape[0]):
             b_enc_0 = enc_0[ind, ~is_pad_0[ind]]
             b_enc_1 = enc_1[ind, ~is_pad_1[ind]]
             b_match = matches_gt[ind, ~is_pad_0[ind]][:, ~is_pad_1[ind]]
