@@ -40,6 +40,8 @@ def contrastive_loss_fn(features1, features2, gt_match, gt_mask,
     match_loss = match_loss * gt_mask
     non_match_loss = non_match_loss * gt_mask
 
+    raise RuntimeError('shoudl I be weighting it like this or just summing equal weight?')
+
     pos_vals = gt_match*gt_mask
     neg_vals = (1-gt_match)*gt_mask
 
