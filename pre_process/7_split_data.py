@@ -45,9 +45,9 @@ def split_data(annotations_dir, train_pct, val_pct, train_dir, val_dir, test_dir
 
 train_pct = 0.70
 val_pct = 0.15
-annotations_dir = '/home/frc-ag-3/harry_ws/fruitlet_2023/labelling/inhand/tro_final/id_annotations_filtered'
-train_dir = '/home/frc-ag-3/harry_ws/fruitlet_2023/scripts/inhand/tro_final/AssociationNetwork_v2/datasets/train'
-val_dir = '/home/frc-ag-3/harry_ws/fruitlet_2023/scripts/inhand/tro_final/AssociationNetwork_v2/datasets/val'
-test_dir = '/home/frc-ag-3/harry_ws/fruitlet_2023/scripts/inhand/tro_final/AssociationNetwork_v2/datasets/test'
+annotations_dir = 'labelling/id_annotations_filtered'
+train_dir = 'datasets/train'
+val_dir = 'datasets/val'
+test_dir = 'datasets/test'
 
 split_data(annotations_dir, train_pct, val_pct, train_dir, val_dir, test_dir)
