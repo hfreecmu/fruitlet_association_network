@@ -254,6 +254,7 @@ class AssociationDataset(Dataset):
             fruitlet_ids = np.concatenate([fruitlet_ids[0:rand_drop_ind], fruitlet_ids[rand_drop_ind+1:]])
 
         # not sure about this but doing it
+        # yes needed
         cloud_boxes = cloud_boxes - cloud_boxes.mean(axis=(0, 1))
 
         # if should flip then flip left and right cloud images

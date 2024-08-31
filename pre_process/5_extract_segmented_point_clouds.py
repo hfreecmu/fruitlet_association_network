@@ -194,9 +194,6 @@ def extract_point_cloud(left_path, disparity, camera_info_path,
     camera_info = read_yaml(camera_info_path)
     intrinsics = get_intrinsics(camera_info)
 
-    #inf_inds = np.where(disparity <= 0)
-    #disparity[inf_inds] = 1e-6
-
     pil_im = Image.open(left_path)
     im = np.array(pil_im).astype(np.uint8)
 
@@ -206,8 +203,9 @@ def extract_point_cloud(left_path, disparity, camera_info_path,
     points = compute_points(disparity, intrinsics)
     colors = im.astype(float) / 255
 
-    #points[inf_inds] = np.nan
-    #colors[inf_inds] = np.nan
+    inf_inds = np.where(disparity <= 0)
+    points[inf_inds] = np.nan
+    colors[inf_inds] = np.nan
 
     if should_depth_discon_filter:
         discontinuity_map = extract_depth_discontuinities(disparity, intrinsics)
@@ -240,11 +238,12 @@ def create_point_cloud(cloud_path, points, colors, normals=None, estimate_normal
 
 BACKWARDS_MAPPING_PATH = '/home/frc-ag-3/harry_ws/fruitlet_2023/labelling/inhand/tro_final/selected_images/backward_mappings.json'
 
+anno_dir = '/home/frc-ag-3/harry_ws/fruitlet_2023/labelling/inhand/tro_final/id_annotations'
 detections_dir = '/home/frc-ag-3/harry_ws/fruitlet_2023/labelling/inhand/tro_final/detections'
 image_dir = '/home/frc-ag-3/harry_ws/fruitlet_2023/labelling/inhand/tro_final/selected_images/images'
-# image_dir = '/home/frc-ag-3/Downloads/debug_fruitlet/debug_cloud/images'
 raft_middleburry_path = '/home/frc-ag-3/harry_ws/viewpoint_planning/segment_exp/src/fruitlet_disparity/models/raftstereo-middlebury.pth'
-camera_info_dir = '/home/frc-ag-3/harry_ws/fruitlet_2023/labelling/inhand/final_pipeline/camera_info'
+camera_info_dir = 'camera_info'
+disparity_dir = '/home/frc-ag-3/harry_ws/fruitlet_2023/labelling/inhand/tro_final/disparity'
 output_dir = '/home/frc-ag-3/harry_ws/fruitlet_2023/labelling/inhand/tro_final/point_clouds'
 device = 'cuda'
 
@@ -257,31 +256,29 @@ if __name__ == "__main__":
     raft_args = get_middle_model_args(raft_middleburry_path)
     raft_model = load_raft_model(raft_args, device)
 
-    if vis:
-        filenames = []
-
-    for filename in os.listdir(detections_dir):
-        if not filename.endswith('.pkl'):
+    for filename in os.listdir(anno_dir):
+        if not filename.endswith('.json'):
             continue
 
         if not 'left' in filename:
             continue
 
-        detections_path = os.path.join(detections_dir, filename)
-        left_image_path = os.path.join(image_dir, filename.replace('.pkl', '.png'))
+        detections_path = os.path.join(detections_dir, filename.replace('.json', '.pkl'))
+        left_image_path = os.path.join(image_dir, filename.replace('.json', '.png'))
         right_image_path = left_image_path.replace('left', 'right')
 
-        #TODO take this out
-        if not os.path.exists(left_image_path):
-            continue
+        disparity_path = os.path.join(disparity_dir, filename.replace('.json', '.npy'))
+        if os.path.exists(disparity_path):
+            disparity = np.load(disparity_path)
+        else:
+            disparity = extract_raft_disparity(raft_model, left_image_path, right_image_path,
+                                               raft_args.valid_iters, device)
+            np.save(disparity_path, disparity)
 
-        output_path = os.path.join(output_dir, filename)
+        output_path = os.path.join(output_dir, filename.replace('.json', '.pkl'))
         if os.path.exists(output_path):
             print('Skipping: ', filename)
             continue
-
-        disparity = extract_raft_disparity(raft_model, left_image_path, right_image_path,
-                                           raft_args.valid_iters, device)
         
         camera_info_path = get_camera_info_path(camera_info_dir, left_image_path)
 
@@ -299,22 +296,8 @@ if __name__ == "__main__":
             
         write_pickle(output_path, cloud_points)
 
-        if vis:
-            filenames.append(filename)
-
-        print('Done: ', filename)
-
-    if vis:
-        if len(filenames) > num_vis:
-            rand_inds = np.random.choice(len(filenames), num_vis, replace=False)
-        else:
-            rand_inds = np.arange(len(filenames))
-
-        for rand_ind in rand_inds:
-            filename = filenames[rand_ind]
-            cloud_path = os.path.join(output_dir, filename)
-
-            cloud_points = read_pickle(cloud_path)
+        if vis and num_vis > 0:
+            num_vis -= 1
 
             num_fruitlets = len(cloud_points)
             colors = distinctipy.get_colors(num_fruitlets)
@@ -339,12 +322,10 @@ if __name__ == "__main__":
             full_cloud = np.vstack(full_cloud)
             full_colors = np.vstack(full_colors)
 
-            vis_path = os.path.join(vis_dir, filename.replace('.pkl', '.pcd'))
+            vis_path = os.path.join(vis_dir, filename.replace('.json', '.pcd'))
             create_point_cloud(vis_path, full_cloud, full_colors)
 
-        
 
-        
-
+        print('Done: ', filename)
 
 

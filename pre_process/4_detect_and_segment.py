@@ -76,11 +76,12 @@ vis_dir = '/home/frc-ag-3/harry_ws/fruitlet_2023/labelling/inhand/tro_final/vis_
 if __name__ == "__main__":
     model = load_seg_model(model_path, score_thresh)
 
-    if vis:
-        filenames = []
 
     for filename in os.listdir(image_dir):
         if not filename.endswith('.png'):
+            continue
+
+        if not 'left' in filename:
             continue
 
         image_path = os.path.join(image_dir, filename)
@@ -95,22 +96,11 @@ if __name__ == "__main__":
         output_path = os.path.join(output_dir, filename.replace('.png', '.pkl'))
         write_pickle(output_path, output_dict)
 
-        if vis:
-            filenames.append(filename)
+        if vis and num_vis > 0:
+            vis_im = cv2.imread(image_path).copy()
 
-    if vis:
-        rand_inds = np.random.choice(len(filenames), num_vis, replace=False)
-        for rand_ind in rand_inds:
-            filename = filenames[rand_ind]
-            seg_path = os.path.join(output_dir, filename.replace('.png', '.pkl'))
-
-            seg_dict = read_pickle(seg_path)
-
-            im_path = os.path.join(image_dir, filename)
-            vis_im = cv2.imread(im_path).copy()
-
-            im_boxes = seg_dict['boxes']
-            segmentations = seg_dict['segmentations']
+            im_boxes = output_dict['boxes']
+            segmentations = output_dict['segmentations']
 
             num_boxes = len(im_boxes)
             colors = distinctipy.get_colors(num_boxes)
@@ -126,4 +116,6 @@ if __name__ == "__main__":
 
             vis_path = os.path.join(vis_dir, filename)
             cv2.imwrite(vis_path, vis_im)
+
+            num_vis -= 1
 
