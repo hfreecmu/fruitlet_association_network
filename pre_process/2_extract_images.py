@@ -16,8 +16,8 @@ def write_json(path, data, pretty=False):
 
 # used to create mappings file and group images by same cluster
 
-selected_image_paths = '/home/frc-ag-3/harry_ws/fruitlet_2023/labelling/inhand/tro_final/selected_images.json'
-output_dir = '/home/frc-ag-3/harry_ws/fruitlet_2023/labelling/inhand/tro_final/selected_images'
+selected_image_paths = 'labelling/selected_images/selected_images.json'
+output_dir = 'labelling/selected_images/'
 include_right = True
 
 image_paths = read_json(selected_image_paths)

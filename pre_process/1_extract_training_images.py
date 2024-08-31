@@ -10,42 +10,40 @@ def write_json(path, data, pretty=False):
             json.dump(data, f, indent=4)
 
 ### input dirs
-inhand_dir_2021 = '/media/frc-ag-3/umass_1/umass/umass_2021_data/umass_2021_bags'
-inhand_dir_2023_70 = '/media/frc-ag-3/umass_1/umass/umass_2023_data/in-hand_images/rectified_images/70_clusters'
-robot_dir_2023_70 = '/media/frc-ag-3/umass_1/umass/umass_2023_data/field_data/rectified_images/70_clusters'
-#inhand_dir_2023_30 = '/media/frc-ag-3/umass_1/umass/umass_2023_data/in-hand_images/rectified_images/30_clusters'
-#robot_dir_2023_30 = '/media/frc-ag-3/umass_1/umass/umass_2023_data/field_data/rectified_images/30_clusters'
+inhand_dir_2021 = '/media/hfreeman/Harry_Data_Large/umass/umass_2021_data/umass_2021_bags'
+inhad_dir_2022 = '/media/hfreeman/Harry_Data_Large/umass/umass_2022_data/in_hand/rectified_images'
+robot_dir_2022 = '/media/hfreeman/Harry_Data_Large/umass/umass_2022_data/Harry/rectified_images'
+inhand_dir_2023_70 = '/media/hfreeman/Harry_Data_Large/umass/umass_2023_data/in-hand_images/rectified_images/70_clusters'
+robot_dir_2023_70 = '/media/hfreeman/Harry_Data_Large/umass/umass_2023_data/field_data/rectified_images/70_clusters'
+inhand_dir_2023_30 = '/media/hfreeman/Harry_Data_Large/umass/umass_2023_data/in-hand_images/rectified_images/30_clusters'
+robot_dir_2023_30 = '/media/hfreeman/Harry_Data_Large/umass/umass_2023_data/field_data/rectified_images/30_clusters'
 ###
 
 ### output dirs
-images_output = '/home/frc-ag-3/harry_ws/fruitlet_2023/labelling/inhand/tro_final/selected_images.json'
-image_dist_output = '/home/frc-ag-3/harry_ws/fruitlet_2023/labelling/inhand/tro_final/selected_image_dist.json'
+images_output = 'labelling/selected_images/selected_images.json'
+image_dist_output = 'labelling/selected_images/selected_image_dist.json'
 ###
 
 # num images per tag
-images_per_tag = 4
+images_per_tag = 2
 #
 
 training_dirs = [inhand_dir_2021,
+                 inhad_dir_2022,
+                 robot_dir_2022,
                  inhand_dir_2023_70,
                  robot_dir_2023_70,
-                 #inhand_dir_2023_30,
-                 #robot_dir_2023_30,
+                 inhand_dir_2023_30,
+                 robot_dir_2023_30,
                  ]
 
-filter_dict = {inhand_dir_2021: (True, {245, 250, 170, 172, 173, 174, 176,
-                                        177, 190, 193, 229, 238, 247, 251,
-                                        8, 15, 42, 48, 51, 54, 58,
-                                        60, 62, 67, 69, 71, 81, 82,
-                                        95, 97, 100, 105, 106, 120, 121,
-                                        125, 128, 137, 154, 160, 161, 163}),
-               inhand_dir_2023_70: (False, set()),
-               robot_dir_2023_70: (False, set()),
-               inhand_dir_2023_30: (False, set()),
-               robot_dir_2023_30: (False, set())
-               }
+filter_dict = {}
+for key in training_dirs:
+    filter_dict[key] = (False, set())
 
 year_dict = {inhand_dir_2021: '2021',
+             inhad_dir_2022: '2022',
+             robot_dir_2022: '2022',
              inhand_dir_2023_70: '2023',
              robot_dir_2023_70: '2023',
              inhand_dir_2023_30: '2023',

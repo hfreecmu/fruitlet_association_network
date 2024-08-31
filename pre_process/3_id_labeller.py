@@ -84,6 +84,7 @@ class Annotate():
                 
                 self.curr_annotation_dict['image_path'] = image_path
                 self.curr_annotation_dict['det_path'] = detections_path
+                self.curr_annotation_dict['flagged'] = False
 
                 self.curr_annotation_dict['annotations'] = []
 
@@ -153,6 +154,10 @@ class Annotate():
             label_text = tkinter.Label(window, text=label_string, font=("Helvetica", 22), fg=label_colour)
             label_text.place(anchor = tkinter.NW, x = 0, y = 0)
 
+            if 'flagged' in self.curr_annotation_dict and self.curr_annotation_dict['flagged']:
+                flag_text = tkinter.Label(window, text='flagged', font=("Helvetica", 22), fg='red')
+                flag_text.place(anchor = tkinter.NW, x = 0, y = 25)
+
             for label_info in label_infos:
                 mid_x, mid_y, assoc_id = label_info
                 num_text = tkinter.Label(window, text=str(assoc_id), font=("Helvetica", 8))
@@ -192,6 +197,14 @@ class Annotate():
         elif character in ['1', '2', '3', '4', '5', '6', '7', '8', '9']:
             self.label_mode = True
             self.fruitlet_num = int(character)
+        elif character == 'f':
+            self.should_save = True
+            self.prev_index = True
+            if 'flagged' in self.curr_annotation_dict:
+                self.curr_annotation_dict['flagged'] = not self.curr_annotation_dict['flagged']
+            else:
+                self.curr_annotation_dict['flagged'] = True
+            event.widget.quit()
         elif character == 'c':
             self.label_mode = False
             self.fruitlet_num = None
@@ -237,7 +250,6 @@ class Annotate():
                 self.curr_index = next_index
                 event.widget.quit()
                
-
     def event_action_click(self, event):
         if not self.label_mode:
             return
@@ -274,11 +286,17 @@ class Annotate():
         for filename in os.listdir(self.image_dir):
             if year is not None:
                 if not filename.split('_')[0] == str(year):
-                    continue                    
+                    continue        
 
-                #temporarily hardcoding
-                if int(filename.split('_')[1]) < 31:
-                    continue
+                if year == 2023:
+                    id = int(filename.split('_')[1])
+                    if id < 40:
+                        continue  
+
+                if year == 2021:
+                    id = int(filename.split('_')[1])
+                    if id > 100:
+                        continue       
 
             if side is not None:
                 if not side in filename:
@@ -288,10 +306,10 @@ class Annotate():
 
         return files
 
-image_dir = '/home/frc-ag-3/harry_ws/fruitlet_2023/labelling/inhand/tro_final/selected_images/images'
-detections_dir = '/home/frc-ag-3/harry_ws/fruitlet_2023/labelling/inhand/tro_final/detections'
-output_dir = '/home/frc-ag-3/harry_ws/fruitlet_2023/labelling/inhand/tro_final/id_annotations'
-year = 2023
+image_dir = 'labelling/selected_images/images'
+detections_dir = 'labelling/detections'
+output_dir = 'labelling/id_annotations'
+year = 2022
 side = 'left'
 
 if __name__ == "__main__":
