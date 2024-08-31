@@ -1,6 +1,7 @@
 import torch
 from torch import optim
 import lightning as L
+from pl_bolts.optimizers.lr_scheduler import LinearWarmupCosineAnnealingLR
 import torch.nn.functional as F
 from scipy.optimize import linear_sum_assignment
 
@@ -191,10 +192,9 @@ class LightningAssociator(L.LightningModule):
                  loss_params,
                  model_params,
                  include_bce,
-                 lr=None,
-                 gamma=None,
-                 train_step=None,
-                 weight_decay=None, 
+                 lr,
+                 weight_decay, 
+                 scheduler,
                  ):
         super().__init__()
 
@@ -202,8 +202,7 @@ class LightningAssociator(L.LightningModule):
 
         self.lr = lr
         self.weight_decay = weight_decay
-        self.gamma = gamma
-        self.train_step = train_step
+        self.scheduler = scheduler
         
         self.loss_params = loss_params
 
@@ -329,14 +328,24 @@ class LightningAssociator(L.LightningModule):
             optimizer = optim.Adam(self.parameters(), 
                                    lr=self.lr,
                                    weight_decay=self.weight_decay)
-        
-        if self.gamma is not None:
-            scheduler = torch.optim.lr_scheduler.StepLR(optimizer,
-                                                        step_size=self.train_step,
-                                                        gamma=self.gamma) 
-            return [optimizer], [scheduler]
-        else:
-            return optimizer
 
+        if self.scheduler is None:
+            return optimizer
+        
+
+        if self.scheduler.type == 'lr_step':
+            gamma = self.scheduler.gamma
+            train_step = self.scheduler.train_step
+            scheduler = torch.optim.lr_scheduler.StepLR(optimizer,
+                                                        step_size=train_step,
+                                                        gamma=gamma) 
+        elif self.scheduler.type == 'warmup_cosine':
+            warmup_epochs = self.scheduler.warmup_epochs
+            max_epochs = self.scheduler.max_epochs
+            scheduler = LinearWarmupCosineAnnealingLR(optimizer, warmup_epochs=warmup_epochs, max_epochs=max_epochs)
+        else:
+            raise RuntimeError('Invalid scheduler type: ' + self.scheduler.type)
+
+        return [optimizer], [scheduler]
     
         

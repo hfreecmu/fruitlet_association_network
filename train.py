@@ -41,8 +41,7 @@ def train(train_params,
                                     model_params=model_params,
                                     lr=train_params['lr'],
                                     weight_decay=train_params['weight_decay'],
-                                    gamma=train_params['gamma'],
-                                    train_step=train_params['train_step'],
+                                    scheduler=train_params['scheduler'],
                                     )
     else:
         prev_exp_name = exp_name

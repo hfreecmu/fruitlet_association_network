@@ -1,5 +1,5 @@
 ### Params to change between exps:
-exp_name: 'contrastive_l2_overfit'
+exp_name: 'contrastive_l2_overfit_no_sched'
 loss_path: 'cfg/loss/loss_contrastive_l2.yml'
 ###
 
@@ -7,8 +7,8 @@ loss_path: 'cfg/loss/loss_contrastive_l2.yml'
 # images and batch size
 #images_dir: &images_dir '/ocean/projects/agr240003p/hfreeman/t_ro/labels/selected_images/images'
 images_dir: &images_dir 'labelling/selected_images/images'
-batch_size: &batch_size 32
-#batch_size: &batch_size 8
+#batch_size: &batch_size 32
+batch_size: &batch_size 8
 ###
 
 # data and logging
@@ -46,14 +46,23 @@ model_params:
     dim_feedforward: 1024
     dropout: 0.0
     normalize_before: True
-    num_layers: 3
+    num_layers: 4
 
 train_params:
   num_epochs: 40
   lr: 1e-4
   weight_decay: 1e-5
-  gamma: 0.9
-  train_step: 5
+
+  #scheduler: null
+  scheduler:
+    type: 'lr_step'
+    gamma: 0.95
+    train_step: 50
+
+    # type: 'warmup_cosine'
+    # warmup_epochs: 2
+    # max_epochs: 40
+
   augment: False
 
   anno_root: *anno_root

@@ -35,11 +35,8 @@ def test(test_params,
     
         print('Using checkpoint: ' + checkpoint_path)
 
-        model = LightningAssociator.load_from_checkpoint(checkpoint_path, 
-                                                         #loss_params=loss_params,
-                                                         #include_bce=include_bce, 
-                                                         #model_params=model_params,
-                                                         )
+        model = LightningAssociator.load_from_checkpoint(checkpoint_path)
+        
         trainer = L.Trainer(enable_checkpointing=False, logger=False)
 
     else:
