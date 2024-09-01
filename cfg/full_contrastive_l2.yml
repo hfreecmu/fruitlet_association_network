@@ -13,15 +13,12 @@ batch_size: &batch_size 32
 
 # data and logging
 anno_root: &anno_root 'datasets'
-cache: &cache True
 checkpoint_dir: 'lightning_logs'
 image_size: &image_size 128
 vis_encoder_type: &vis_encoder_type 'resnet-18'
 
 # dataset confg
 max_fruitlets: &max_fruitlets 8
-min_fruitlets_per_im: &min_fruitlets_per_im 3
-min_fruitlet_matches: &min_fruitlet_matches 2
 
 # checkpoint metrics
 checkpoint_metrics:
@@ -29,7 +26,7 @@ checkpoint_metrics:
     is_min: True
 
 model_params:
-  d_model: 256
+  d_model: 512
   image_size: *image_size
 
   vis_encoder_args:
@@ -43,10 +40,10 @@ model_params:
 
   trans_encoder_args:
     nhead: 8
-    dim_feedforward: 1024
+    dim_feedforward: 2048
     dropout: 0.0
     normalize_before: True
-    num_layers: 5
+    num_layers: 4
 
 train_params:
   num_epochs: 200
@@ -64,7 +61,7 @@ train_params:
     # max_epochs: 40
 
   augment: 
-    bright_pct: 0.5
+    bright_pct: 0.0
     rotate_pct: 0.0
     drop_cloud_pct: 0.6
     drop_seg_pct: 0.2
@@ -76,11 +73,8 @@ train_params:
   images_dir: *images_dir
   image_size: *image_size
   encoder_type: *vis_encoder_type
-  cache: *cache
 
   max_fruitlets: *max_fruitlets
-  min_fruitlets_per_im: *min_fruitlets_per_im
-  min_fruitlet_matches: *min_fruitlet_matches
 
   is_test: False
 
@@ -92,11 +86,8 @@ val_params:
   images_dir: *images_dir
   image_size: *image_size
   encoder_type: *vis_encoder_type
-  cache: *cache
 
   max_fruitlets: *max_fruitlets
-  min_fruitlets_per_im: *min_fruitlets_per_im
-  min_fruitlet_matches: *min_fruitlet_matches
 
   is_test: False
 
@@ -108,10 +99,7 @@ test_params:
   images_dir: *images_dir
   image_size: *image_size
   encoder_type: *vis_encoder_type
-  cache: *cache
 
   max_fruitlets: *max_fruitlets
-  min_fruitlets_per_im: *min_fruitlets_per_im
-  min_fruitlet_matches: *min_fruitlet_matches
 
   is_test: True
