@@ -6,6 +6,7 @@ import torch.nn.functional as F
 from scipy.optimize import linear_sum_assignment
 
 from model.associator import FruitletAssociator
+from util.util import vis_matches
 
 # reproduces https://stats.stackexchange.com/questions/573581/why-does-contrastive-loss-and-triplet-loss-have-the-margin-element-in-them
 # except the pow
@@ -128,15 +129,21 @@ def get_loss(loss_params, features_0, features_1,
 
     return match_loss, bce_loss, dists
 
-def get_loss_metrics(dists, is_pad_0, is_pad_1, matches_gt, loss_params):
+# TODO don't like how vis is in loss metrics. Move it.
+# probably have a common function to find matches
+def get_loss_metrics(dists, is_pad_0, is_pad_1, matches_gt, loss_params,
+                     vis=False, 
+                     im_paths_0=None, anno_paths_0=None, det_inds_0=None, 
+                     im_paths_1=None, anno_paths_1=None, det_inds_1=None, 
+                     vis_dir=None):
     dists = dists.cpu().numpy()
     padded_0s = is_pad_0.cpu().numpy()
     padded_1s = is_pad_1.cpu().numpy()
     full_true_pos = 0
     full_false_pos = 0
     full_false_neg = 0
-    for batch_dists, batch_matches_gt, batch_pad_0s, batch_pad_1s \
-        in zip(dists, matches_gt, padded_0s, padded_1s):
+    for ind, batch_data in enumerate(zip(dists, matches_gt, padded_0s, padded_1s)):
+        batch_dists, batch_matches_gt, batch_pad_0s, batch_pad_1s = batch_data
 
         batch_dists = batch_dists[~batch_pad_0s][:, ~batch_pad_1s]
         matches = batch_matches_gt[~batch_pad_0s][:, ~batch_pad_1s]
@@ -150,6 +157,12 @@ def get_loss_metrics(dists, is_pad_0, is_pad_1, matches_gt, loss_params):
             #TODO not the best because could assign twice to same one. fix.
             is_match = torch.zeros_like(matches)
             is_match[batch_dists > loss_params['match_thresh']] = 1.0
+
+        if vis:
+            vis_matches(is_match.cpu().numpy(), matches.cpu().numpy(), 
+                        im_paths_0[ind], anno_paths_0[ind], det_inds_0[ind, ~batch_pad_0s].cpu().numpy(),
+                        im_paths_1[ind], anno_paths_1[ind], det_inds_1[ind, ~batch_pad_1s].cpu().numpy(), 
+                        vis_dir)
 
         true_pos = (matches * is_match).sum()
         false_pos = ((1 - matches) * is_match).sum()
@@ -195,6 +208,8 @@ class LightningAssociator(L.LightningModule):
                  lr,
                  weight_decay, 
                  scheduler,
+                 vis=False,
+                 vis_dir=None,
                  ):
         super().__init__()
 
@@ -212,6 +227,9 @@ class LightningAssociator(L.LightningModule):
         
         self.include_bce = include_bce
         self.bce_loss_fn = torch.nn.BCEWithLogitsLoss()
+
+        self.vis = vis
+        self.vis_dir = vis_dir
 
     def training_step(self, batch, batch_idx):
         _, fruitlet_ims_0, fruitlet_clouds_0, \
@@ -287,7 +305,8 @@ class LightningAssociator(L.LightningModule):
         is_pad_0, _, \
         _, fruitlet_ims_1, fruitlet_clouds_1, \
         is_pad_1, _, \
-        matches_gt, masks_gt = batch
+        matches_gt, masks_gt, \
+        im_paths_0, anno_paths_0, det_inds_0, im_paths_1, anno_paths_1, det_inds_1 = batch
         
         data_0 = (fruitlet_ims_0, fruitlet_clouds_0, is_pad_0)
         data_1 = (fruitlet_ims_1, fruitlet_clouds_1, is_pad_1)
@@ -304,7 +323,11 @@ class LightningAssociator(L.LightningModule):
         loss = match_loss + bce_loss
 
         precision, recall, f1 = get_loss_metrics(dists, is_pad_0, is_pad_1,
-                                                 matches_gt, self.loss_params)
+                                                 matches_gt, self.loss_params,
+                                                 self.vis, 
+                                                 im_paths_0, anno_paths_0, det_inds_0, 
+                                                 im_paths_1, anno_paths_1, det_inds_1, 
+                                                 self.vis_dir)
         
         self.log('precision', precision)
         self.log('recall', recall)

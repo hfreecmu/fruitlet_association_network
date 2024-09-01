@@ -6,7 +6,7 @@ import copy
 
 # Transformer Encoder
 class TransformerEncoder(nn.Module):
-    def __init__(self, encoder_layer, num_layers, norm=None, **kwargs):
+    def __init__(self, encoder_layer, num_layers, norm, **kwargs):
         super().__init__()
         self.layers = _get_clones(encoder_layer, num_layers)
         self.num_layers = num_layers
@@ -72,15 +72,22 @@ class TransformerEncoderLayer(nn.Module):
 
          # Implementation of Feedforward model
         self.linear1 = nn.Linear(d_model, dim_feedforward)
-        self.dropout = nn.Dropout(dropout)
+        self.dropout_x0 = nn.Dropout(dropout)
         self.linear2 = nn.Linear(dim_feedforward, d_model)
+
+        self.linear3 = nn.Linear(d_model, dim_feedforward)
+        self.dropout_x1 = nn.Dropout(dropout)
+        self.linear4 = nn.Linear(dim_feedforward, d_model)
 
         self.norm1 = nn.LayerNorm(d_model)
         self.norm2 = nn.LayerNorm(d_model)
-        self.norm3 = nn.LayerNorm(d_model)
         self.dropout1 = nn.Dropout(dropout)
         self.dropout2 = nn.Dropout(dropout)
+        
+        self.norm3 = nn.LayerNorm(d_model)
+        self.norm4 = nn.LayerNorm(d_model)
         self.dropout3 = nn.Dropout(dropout)
+        self.dropout4 = nn.Dropout(dropout)
 
         self.activation = _get_activation_fn(activation)
         self.normalize_before = normalize_before
@@ -113,10 +120,11 @@ class TransformerEncoderLayer(nn.Module):
             src = src + self.dropout1(src2)
             src = self.norm1(src)
 
-            # from detr decoder we don't do these yet
-            #src2 = self.linear?(self.dropout?(self.activation(self.linear?(src))))
-            #src = src + self.dropout?(src2)
-            #src = self.norm?(src)
+            # TODO do I do thse here? no because I do them later right? I am unsure
+            # actually maybe because we pos embed both?
+            src2 = self.linear2(self.dropout_x0(self.activation(self.linear1(src))))
+            src = src + self.dropout2(src2)
+            src = self.norm2(src)
         
             src_res.append(src)
 
@@ -139,11 +147,11 @@ class TransformerEncoderLayer(nn.Module):
 
             src2 = self.cross_attention(q, k, value=src_kv, attn_mask=src_mask,
                                         key_padding_mask=src_key_padding_mask)[0]
-            src_q = src_q + self.dropout2(src2)
-            src_q = self.norm2(src_q)
-            src2 = self.linear2(self.dropout(self.activation(self.linear1(src_q))))
             src_q = src_q + self.dropout3(src2)
             src_q = self.norm3(src_q)
+            src2 = self.linear4(self.dropout_x1(self.activation(self.linear3(src_q))))
+            src_q = src_q + self.dropout3(src2)
+            src_q = self.norm4(src_q)
 
             src_res.append(src_q)
         
@@ -173,10 +181,10 @@ class TransformerEncoderLayer(nn.Module):
                                   key_padding_mask=src_key_padding_mask)[0]
             src = src + self.dropout1(src2)
 
-            # from detr decoder we don't do these yet
-            # src2 = self.norm?(src)
-            # src2 = self.linear?(self.dropout?(self.activation(self.linear1(src?))))
-            # src = src + self.dropout?(src?)
+            # TODO maybe we should? Do we do this?
+            src2 = self.norm2(src)
+            src2 = self.linear2(self.dropout_x0(self.activation(self.linear1(src2))))
+            src = src + self.dropout2(src2)
 
             src_res.append(src)
 
@@ -194,15 +202,15 @@ class TransformerEncoderLayer(nn.Module):
         for cross_entry in [cross_entries_0, cross_entries_1]:
             src_q, src_kv, src_mask, src_key_padding_mask, pos_q, pos_kv = cross_entry
 
-            src2 = self.norm2(src_q)
+            src2 = self.norm3(src_q)
             src2 = self.cross_attention(query=self.with_pos_embed(src2, pos_q),
                                         key=self.with_pos_embed(src_kv, pos_kv),
                                         value=src_kv, attn_mask=src_mask,
                                         key_padding_mask=src_key_padding_mask)[0]
-            src_q = src_q + self.dropout2(src2)
-            src2 = self.norm3(src_q)
-            src2 = self.linear2(self.dropout(self.activation(self.linear1(src2))))
             src_q = src_q + self.dropout3(src2)
+            src2 = self.norm4(src_q)
+            src2 = self.linear4(self.dropout_x1(self.activation(self.linear3(src2))))
+            src_q = src_q + self.dropout4(src2)
 
             src_res.append(src_q)
 

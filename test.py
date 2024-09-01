@@ -9,7 +9,7 @@ from data.dataset import AssociationDataset
 from data.icp_dataset import ICPAssociationDataset
 from model.lightning_associator import LightningAssociator
 from model.icp_associator import ICPAssociator
-from util.util import get_checkpoint_path, write_json, load_cfg
+from util.util import get_checkpoint_path, load_cfg
 
 def test(test_params, 
          model_params, 
@@ -35,7 +35,9 @@ def test(test_params,
     
         print('Using checkpoint: ' + checkpoint_path)
 
-        model = LightningAssociator.load_from_checkpoint(checkpoint_path)
+        model = LightningAssociator.load_from_checkpoint(checkpoint_path,
+                                                         vis=test_params['vis'],
+                                                         vis_dir=test_params['vis_dir'])
         
         trainer = L.Trainer(enable_checkpointing=False, logger=False)
 
@@ -64,6 +66,8 @@ def parse_args():
     parser.add_argument('cfg_path')
     parser.add_argument('--include_bce', action='store_true')
     parser.add_argument('--use_icp', action='store_true')
+    parser.add_argument('--vis', action='store_true')
+    parser.add_argument('--vis_dir', default=None)
 
     args = parser.parse_args()
     return args
@@ -73,9 +77,13 @@ if __name__ == "__main__":
     cfg_path = args.cfg_path
     include_bce = args.include_bce
     use_icp = args.use_icp
+    vis = args.vis
+    vis_dir = args.vis_dir
 
     cfg = load_cfg(cfg_path)
     cfg['include_bce'] = include_bce
     cfg['test_params']['use_icp'] = use_icp
+    cfg['test_params']['vis'] = vis
+    cfg['test_params']['vis_dir'] = vis_dir
 
     test(**cfg)

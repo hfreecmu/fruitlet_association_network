@@ -2,7 +2,8 @@ import os
 import json
 import pickle
 from omegaconf import OmegaConf
-
+import cv2
+import numpy as np
 
 def read_json(path):
     with open(path) as f:
@@ -69,3 +70,60 @@ def get_checkpoint_path(checkpoint_dir, exp_name, checkpoint_metrics):
     
     checkpoint_path = os.path.join(checkpoint_dir, best_filename)
     return checkpoint_path
+
+def vis_matches(matches, gt_matches, 
+                im_path_0, anno_path_0, det_inds_0, 
+                im_path_1, anno_path_1, det_inds_1,
+                output_dir):
+    im_0 = cv2.imread(im_path_0)
+    im_1 = cv2.imread(im_path_1)
+
+    anno_0 = read_json(anno_path_0)['annotations']
+    anno_1 = read_json(anno_path_1)['annotations']
+
+    file_key_0 = os.path.basename(anno_path_0).split('.json')[0]
+    file_key_1 = os.path.basename(anno_path_1).split('.json')[0]
+    file_id = '_'.join([file_key_0, file_key_1])
+
+    match_inds = np.argwhere(matches == 1.0)
+    prec_img = np.concatenate([im_0, im_1], axis=1)
+    for m_ind_0, m_ind_1 in match_inds:
+        ind_0 = det_inds_0[m_ind_0]
+        ind_1 = det_inds_1[m_ind_1]
+
+        cx_0 = int((anno_0[ind_0]['x0'] + anno_0[ind_0]['x1']) / 2)
+        cy_0 = int((anno_0[ind_0]['y0'] + anno_0[ind_0]['y1']) / 2)
+
+        cx_1 = int((anno_1[ind_1]['x0'] + anno_1[ind_1]['x1']) / 2) + im_0.shape[1]
+        cy_1 = int((anno_1[ind_1]['y0'] + anno_1[ind_1]['y1']) / 2)
+
+        if gt_matches[m_ind_0, m_ind_1] == 1.0:
+            color = [0, 255, 0]
+        else:
+            color = [0, 0, 255]
+
+        cv2.line(prec_img, (cx_0, cy_0), (cx_1, cy_1), color, thickness=2)
+
+    gt_match_inds = np.argwhere(gt_matches == 1.0)
+    rec_img = np.concatenate([im_0, im_1], axis=1)
+    for m_ind_0, m_ind_1 in gt_match_inds:
+        ind_0 = det_inds_0[m_ind_0]
+        ind_1 = det_inds_1[m_ind_1]
+
+        cx_0 = int((anno_0[ind_0]['x0'] + anno_0[ind_0]['x1']) / 2)
+        cy_0 = int((anno_0[ind_0]['y0'] + anno_0[ind_0]['y1']) / 2)
+
+        cx_1 = int((anno_1[ind_1]['x0'] + anno_1[ind_1]['x1']) / 2) + im_0.shape[1]
+        cy_1 = int((anno_1[ind_1]['y0'] + anno_1[ind_1]['y1']) / 2)
+
+        if matches[m_ind_0, m_ind_1] == 1.0:
+            color = [0, 255, 0]
+        else:
+            color = [255, 0, 255]
+
+        cv2.line(rec_img, (cx_0, cy_0), (cx_1, cy_1), color, thickness=2)
+
+    comb_im = np.concatenate([prec_img, rec_img], axis=0)
+        
+    res_path = os.path.join(output_dir, file_id + '.png')
+    cv2.imwrite(res_path, comb_im)

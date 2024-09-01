@@ -62,11 +62,13 @@ class AssociationDataset(DatasetInterface):
                  max_fruitlets,
                  min_fruitlets_per_im,
                  min_fruitlet_matches,
+                 is_test,
                  **kwargs
                  ):
         
         super().__init__(anno_root, anno_subdir, images_dir,
-                         cache, min_fruitlets_per_im, min_fruitlet_matches)
+                         cache, min_fruitlets_per_im, min_fruitlet_matches,
+                         is_test)
 
         self.max_fruitlets = max_fruitlets
         self.augment = augment
@@ -97,16 +99,15 @@ class AssociationDataset(DatasetInterface):
 
         # transform image by scaling to 0->1 and normalizing
         image = self.image_transform(image)
-        if self.augment:
-            if np.random.uniform() < 0.5:
-                image = self.random_brightness(image)
+        if self.augment and (np.random.uniform() < self.augment.bright_pct):
+            image = self.random_brightness(image)
 
         # get fruitlet data
         fruitlet_ims = []
         cloud_boxes = []
         fruitlet_ids = []
 
-        if self.augment:
+        if self.augment and (np.random.uniform() < self.augment.rotate_pct):
             rotate_rand = np.random.uniform()
             rotate_theta = np.deg2rad(np.random.uniform(-10, 10))
             if rotate_rand < 0.25:
@@ -128,8 +129,8 @@ class AssociationDataset(DatasetInterface):
         else:
             rotation = np.eye(3)
 
-
-        for det in annotations:
+        used_det_inds = []
+        for det_ind, det in enumerate(annotations):
             if det['fruitlet_id'] < 0:
                 continue
 
@@ -148,7 +149,7 @@ class AssociationDataset(DatasetInterface):
 
             # rand drop 10% of cloud points
             # will not have effect unless min / max is dropped
-            if self.augment and np.random.uniform() < 0.6:
+            if self.augment and (np.random.uniform() < self.augment.drop_cloud_pct):
                 clouds_to_keep = int(np.round(cloud_points.shape[0]*0.9))
                 rand_inds = np.random.permutation(cloud_points.shape[0])
                 cloud_points = cloud_points[rand_inds[0:clouds_to_keep]] 
@@ -178,7 +179,7 @@ class AssociationDataset(DatasetInterface):
             fruitlet_id = det["fruitlet_id"]
 
             # rand drop 10% of seginds
-            if self.augment and np.random.uniform() < 0.2:
+            if self.augment and (np.random.uniform() < self.augment.drop_seg_pct):
                 segs_to_keep = int(np.round(seg_inds.shape[0]*0.9))
                 rand_inds = np.random.permutation(seg_inds.shape[0])
                 seg_inds = seg_inds[rand_inds[0:segs_to_keep]]
@@ -198,7 +199,7 @@ class AssociationDataset(DatasetInterface):
             fruitlet_im = torch.concatenate([fruitlet_im, seg_im])
 
             # random crop for image
-            if self.augment and np.random.uniform() < 0.90:
+            if self.augment and (np.random.uniform() < self.augment.crop_pct):
                 _, fruitlet_height, fruitlet_width = fruitlet_im.shape
                 new_height = int(np.random.uniform(low=0.9, high=1.0)*fruitlet_height)
                 new_width = int(np.random.uniform(low=0.9, high=1.0)*fruitlet_width)
@@ -230,10 +231,12 @@ class AssociationDataset(DatasetInterface):
             fruitlet_ims.append(fruitlet_im)
             cloud_boxes.append(box_3d)
             fruitlet_ids.append(fruitlet_id)
+            used_det_inds.append(det_ind)
 
         fruitlet_ims = torch.stack(fruitlet_ims)
         cloud_boxes = np.stack(cloud_boxes)
         fruitlet_ids = np.array(fruitlet_ids)
+        used_det_inds = np.array(used_det_inds)
 
         # rand drop a single fruitlet from assoc
         if self.augment and can_drop \
@@ -252,21 +255,27 @@ class AssociationDataset(DatasetInterface):
         if should_flip:
             fruitlet_ims = torch.flip(fruitlet_ims, dims=(-1,))
 
-        return fruitlet_ims, cloud_boxes, fruitlet_ids
+        return fruitlet_ims, cloud_boxes, fruitlet_ids, used_det_inds
 
     def _get_data(self, entry, should_flip, can_drop):
         file_key, annotations_path, image_path = entry
-        fruitlet_ims, cloud_boxes, fruitlet_ids = self.load_data(annotations_path, image_path, should_flip, can_drop)
+        fruitlet_ims, cloud_boxes, fruitlet_ids, used_det_inds = self.load_data(annotations_path, image_path, should_flip, can_drop)
 
         is_pad = np.zeros((self.max_fruitlets), dtype=bool)
         num_pad = self.max_fruitlets - fruitlet_ims.shape[0]
 
+        # TODO is this still valid?
+        # I do not think so. let's get rid of it later
         if num_pad <= 0: # I always want one in case of matches logic below
             raise RuntimeError('Too many fruitlets')
         
         if num_pad > 0:
             fruitlet_ims, cloud_boxes, fruitlet_ids = fruitlet_pad(num_pad, fruitlet_ims, cloud_boxes, fruitlet_ids)
             is_pad[-num_pad:] = True
+
+            used_det_inds_pad = np.zeros((self.max_fruitlets), dtype=int)
+            used_det_inds_pad[0:used_det_inds.shape[0]] = used_det_inds
+            used_det_inds = used_det_inds_pad
 
         if self.augment:
             randperm = torch.randperm(self.max_fruitlets)
@@ -277,7 +286,7 @@ class AssociationDataset(DatasetInterface):
 
         cloud_boxes = cloud_boxes.astype(np.float32)
 
-        return file_key, fruitlet_ims, cloud_boxes, is_pad, fruitlet_ids
+        return file_key, fruitlet_ims, cloud_boxes, is_pad, fruitlet_ids, image_path, annotations_path, used_det_inds
 
     def __getitem__(self, index):
         entry_0, entry_1 = self.file_data[index]
@@ -292,11 +301,11 @@ class AssociationDataset(DatasetInterface):
             if np.random.uniform() < 0.5:
                 entry_0, entry_1 = entry_1, entry_0
             
-            if np.random.uniform() < 0.2:
+            if np.random.uniform() < self.augment.drop_fruitlet_pct:
                 can_drop_0 = True
 
-        file_key_0, fruitlet_ims_0, cloud_boxes_0, is_pad_0, fruitlet_ids_0 = self._get_data(entry_0, should_flip, can_drop_0)
-        file_key_1, fruitlet_ims_1, cloud_boxes_1, is_pad_1, fruitlet_ids_1 = self._get_data(entry_1, should_flip, False)
+        file_key_0, fruitlet_ims_0, cloud_boxes_0, is_pad_0, fruitlet_ids_0, im_path_0, anno_path_0, det_inds_0 = self._get_data(entry_0, should_flip, can_drop_0)
+        file_key_1, fruitlet_ims_1, cloud_boxes_1, is_pad_1, fruitlet_ids_1, im_path_1, anno_path_1, det_inds_1 = self._get_data(entry_1, should_flip, False)
 
         matches_gt = np.zeros((self.max_fruitlets, self.max_fruitlets)).astype(np.float32)
         masks_gt = np.ones((self.max_fruitlets, self.max_fruitlets)).astype(np.float32)
@@ -315,9 +324,18 @@ class AssociationDataset(DatasetInterface):
             ind_1 = np.where(fruitlet_ids_1 == fruitlet_id_0)[0][0]
             matches_gt[ind_0, ind_1] = 1.0
 
-        return file_key_0, fruitlet_ims_0, cloud_boxes_0, \
-               is_pad_0, fruitlet_ids_0, \
-               file_key_1, fruitlet_ims_1, cloud_boxes_1, \
-               is_pad_1, fruitlet_ids_1, \
-               matches_gt, masks_gt
+        if not self.is_test:
+            return file_key_0, fruitlet_ims_0, cloud_boxes_0, \
+                is_pad_0, fruitlet_ids_0, \
+                file_key_1, fruitlet_ims_1, cloud_boxes_1, \
+                is_pad_1, fruitlet_ids_1, \
+                matches_gt, masks_gt
+        else:
+            return file_key_0, fruitlet_ims_0, cloud_boxes_0, \
+                is_pad_0, fruitlet_ids_0, \
+                file_key_1, fruitlet_ims_1, cloud_boxes_1, \
+                is_pad_1, fruitlet_ids_1, \
+                matches_gt, masks_gt, \
+                im_path_0, anno_path_0, det_inds_0, \
+                im_path_1, anno_path_1, det_inds_1
     

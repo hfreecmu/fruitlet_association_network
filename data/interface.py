@@ -11,6 +11,7 @@ class DatasetInterface(Dataset):
                  cache,
                  min_fruitlets_per_im,
                  min_fruitlet_matches,
+                 is_test,
                  ):
         super().__init__()
 
@@ -22,6 +23,7 @@ class DatasetInterface(Dataset):
         
         self.annotations_dir = annotations_dir
         self.images_dir = images_dir
+        self.is_test = is_test
 
         self.file_data = self._get_files(min_fruitlets_per_im, min_fruitlet_matches, cache)
 
