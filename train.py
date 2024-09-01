@@ -73,7 +73,12 @@ def train(train_params,
     
     trainer = L.Trainer(max_epochs=train_params['num_epochs'], 
                         callbacks=[checkpoint_callback_val, checkpoint_callback_f1],
-                        logger=logger, log_every_n_steps=5)
+                        logger=logger, log_every_n_steps=5,
+                        accelerator="gpu",
+                        devices=-1,
+                        strategy="ddp",
+                        #num_nodes=?
+                        )
 
     trainer.fit(model=model, 
                 train_dataloaders=train_loader, 

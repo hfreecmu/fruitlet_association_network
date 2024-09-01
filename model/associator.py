@@ -38,11 +38,15 @@ class FruitletAssociator(nn.Module):
                                            trans_encoder_args['num_layers'], 
                                            encoder_norm)
         
-        self.final_proj = nn.Linear(d_model, d_model)
-        self.matchability = nn.Linear(d_model, 1)
+        if loss_params['loss_type'] == 'matching':
+            self.final_proj = nn.Linear(d_model, d_model)
+            self.matchability = nn.Linear(d_model, 1)
         
         self.loss_params = loss_params
-        self.confidence_pred = MLP(2*d_model, d_model, 1, 3)
+
+        if include_bce:
+            self.confidence_pred = MLP(2*d_model, d_model, 1, 3)
+
         self.include_bce = include_bce
         
     def forward(self, data_0, data_1, matches_gt):

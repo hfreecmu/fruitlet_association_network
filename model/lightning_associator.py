@@ -226,7 +226,10 @@ class LightningAssociator(L.LightningModule):
                                              **model_params)
         
         self.include_bce = include_bce
-        self.bce_loss_fn = torch.nn.BCEWithLogitsLoss()
+        if include_bce:
+            self.bce_loss_fn = torch.nn.BCEWithLogitsLoss()
+        else:
+            self.bce_loss_fn = None
 
         self.vis = vis
         self.vis_dir = vis_dir
