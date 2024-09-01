@@ -161,19 +161,12 @@ class AssociationDataset(DatasetInterface):
             # get mins and maxes
             mins = cloud_points.min(axis=0)
             maxs = cloud_points.max(axis=0)
+            medians = np.median(cloud_points, axis=0)
             if (maxs - mins).max() > 0.05:
                 print('MAJOR WARNING: box dims very')
                 print(annotations_path)
 
-            box_3d = np.array([[mins[0], mins[1], mins[2]],
-                               [mins[0], mins[1], maxs[2]],
-                               [mins[0], maxs[1], mins[2]],
-                               [mins[0], maxs[1], maxs[2]],
-                               [maxs[0], mins[1], mins[2]],
-                               [maxs[0], mins[1], maxs[2]],
-                               [maxs[0], maxs[1], mins[2]],
-                               [maxs[0], maxs[1], maxs[2]],
-                               ])
+            box_3d = np.array([mins[0], maxs[0], mins[1], maxs[1], medians[2]])
             
             x0 = det["x0"]
             y0 = det["y0"]
@@ -251,7 +244,7 @@ class AssociationDataset(DatasetInterface):
             pos_2ds.append(pos_2d)
 
         fruitlet_ims = torch.stack(fruitlet_ims)
-        cloud_boxes = np.stack(cloud_boxes)
+        cloud_boxes = np.array(cloud_boxes)
         fruitlet_ids = np.array(fruitlet_ids)
         used_det_inds = np.array(used_det_inds)
         pos_2ds = np.array(pos_2ds)
@@ -264,10 +257,12 @@ class AssociationDataset(DatasetInterface):
             fruitlet_ims = torch.concatenate([fruitlet_ims[0:rand_drop_ind], fruitlet_ims[rand_drop_ind+1:]])
             cloud_boxes = np.concatenate([cloud_boxes[0:rand_drop_ind], cloud_boxes[rand_drop_ind+1:]])
             fruitlet_ids = np.concatenate([fruitlet_ids[0:rand_drop_ind], fruitlet_ids[rand_drop_ind+1:]])
+            pos_2ds = np.concatenate([pos_2ds[0:rand_drop_ind], pos_2ds[rand_drop_ind+1:]])
+            used_det_inds = np.concatenate([used_det_inds[0:rand_drop_ind], used_det_inds[rand_drop_ind+1:]])
 
         # not sure about this but doing it
         # yes needed
-        cloud_boxes = cloud_boxes - cloud_boxes.mean(axis=(0, 1))
+        cloud_boxes = cloud_boxes - cloud_boxes.mean(axis=(0))
 
         # if should flip then flip left and right cloud images
         if should_flip:

@@ -39,7 +39,7 @@ model_params:
 
   pos_encoder_args:
     temperature: 10000
-    orig_resolution: 0.002
+    orig_resolution: 0.02
 
   trans_encoder_args:
     nhead: 8
