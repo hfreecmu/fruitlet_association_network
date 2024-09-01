@@ -1,5 +1,5 @@
 ### Params to change between exps:
-exp_name: 'contrastive_l2_overfit'
+exp_name: 'contrastive_l2_overfit_debug'
 loss_path: 'cfg/loss/loss_contrastive_l2.yml'
 ###
 
@@ -19,7 +19,7 @@ image_size: &image_size 128
 vis_encoder_type: &vis_encoder_type 'resnet-18'
 
 # dataset confg
-max_fruitlets: &max_fruitlets 6
+max_fruitlets: &max_fruitlets 8
 min_fruitlets_per_im: &min_fruitlets_per_im 3
 min_fruitlet_matches: &min_fruitlet_matches 2
 

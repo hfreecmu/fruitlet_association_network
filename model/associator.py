@@ -3,7 +3,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from model.transformer.blocks_double import TransformerEncoderLayer, TransformerEncoder, MLP
-from model.positional_encoder.cloud_encoder import FixedPositionalEncoder
+from model.positional_encoder.cloud_encoder import Fixed3DPositionalEncoder
+from model.positional_encoder.position_encoding import build_position_encoding
 from model.model_util import get_vis_encoder
 
 class FruitletAssociator(nn.Module):
@@ -24,7 +25,8 @@ class FruitletAssociator(nn.Module):
         self.vis_encoder = get_vis_encoder(**vis_encoder_args)
 
         pos_encoder_args['d_model'] = d_model
-        self.pos_encoder = FixedPositionalEncoder(**pos_encoder_args)
+        self.pos_encoder_3d = Fixed3DPositionalEncoder(**pos_encoder_args)
+        self.pos_encoder_2d = build_position_encoding(d_model)
 
         self.d_model = d_model
         self.scale = d_model**0.5
@@ -44,8 +46,8 @@ class FruitletAssociator(nn.Module):
         self.include_bce = include_bce
         
     def forward(self, data_0, data_1, matches_gt):
-        ims_0, cloud_0, is_pad_0 = data_0
-        ims_1, cloud_1, is_pad_1 = data_1
+        ims_0, cloud_0, is_pad_0, pos_2ds_0 = data_0
+        ims_1, cloud_1, is_pad_1, pos_2ds_1 = data_1
 
         num_batches, fruitlets_per_batch, _, im_height, im_width = ims_0.shape
         full_batch_size = num_batches*fruitlets_per_batch
@@ -61,8 +63,14 @@ class FruitletAssociator(nn.Module):
         vis_enc_0 = vis_enc_0.view(num_batches, fruitlets_per_batch, self.d_model)
         vis_enc_1 = vis_enc_1.view(num_batches, fruitlets_per_batch, self.d_model)
 
-        pos_enc_0 = self.pos_encoder(cloud_0)
-        pos_enc_1 = self.pos_encoder(cloud_1)
+        pos_enc_0_3d = self.pos_encoder_3d(cloud_0)
+        pos_enc_1_3d = self.pos_encoder_3d(cloud_1)
+
+        pos_enc_0_2d = self.pos_encoder_2d(pos_2ds_0)
+        pos_enc_1_2d = self.pos_encoder_2d(pos_2ds_1)
+
+        pos_enc_0 = pos_enc_0_3d + pos_enc_0_2d
+        pos_enc_1 = pos_enc_1_3d + pos_enc_1_2d
         
         enc_0, enc_1 = self.encoder(vis_enc_0, vis_enc_1,
                                     src_key_padding_mask_0=is_pad_0,

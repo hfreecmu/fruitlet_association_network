@@ -233,13 +233,13 @@ class LightningAssociator(L.LightningModule):
 
     def training_step(self, batch, batch_idx):
         _, fruitlet_ims_0, fruitlet_clouds_0, \
-        is_pad_0, _, \
+        is_pad_0, _, pos_2ds_0, \
         _, fruitlet_ims_1, fruitlet_clouds_1, \
-        is_pad_1, _, \
+        is_pad_1, _, pos_2ds_1, \
         matches_gt, masks_gt = batch
         
-        data_0 = (fruitlet_ims_0, fruitlet_clouds_0, is_pad_0)
-        data_1 = (fruitlet_ims_1, fruitlet_clouds_1, is_pad_1)
+        data_0 = (fruitlet_ims_0, fruitlet_clouds_0, is_pad_0, pos_2ds_0)
+        data_1 = (fruitlet_ims_1, fruitlet_clouds_1, is_pad_1, pos_2ds_1)
 
         enc_0, enc_1, sim, z0, z1, pred_confidences, gt_confidences = self.associator(data_0, data_1, matches_gt)
 
@@ -260,13 +260,13 @@ class LightningAssociator(L.LightningModule):
 
     def validation_step(self, batch, batch_index):
         _, fruitlet_ims_0, fruitlet_clouds_0, \
-        is_pad_0, _, \
+        is_pad_0, _, pos_2ds_0, \
         _, fruitlet_ims_1, fruitlet_clouds_1, \
-        is_pad_1, _, \
+        is_pad_1, _, pos_2ds_1, \
         matches_gt, masks_gt = batch
         
-        data_0 = (fruitlet_ims_0, fruitlet_clouds_0, is_pad_0)
-        data_1 = (fruitlet_ims_1, fruitlet_clouds_1, is_pad_1)
+        data_0 = (fruitlet_ims_0, fruitlet_clouds_0, is_pad_0, pos_2ds_0)
+        data_1 = (fruitlet_ims_1, fruitlet_clouds_1, is_pad_1, pos_2ds_1)
 
         enc_0, enc_1, sim, z0, z1, pred_confidences, gt_confidences = self.associator(data_0, data_1, matches_gt)
         
@@ -302,14 +302,14 @@ class LightningAssociator(L.LightningModule):
     
     def test_step(self, batch, batch_idx):
         _, fruitlet_ims_0, fruitlet_clouds_0, \
-        is_pad_0, _, \
+        is_pad_0, _, pos_2ds_0, \
         _, fruitlet_ims_1, fruitlet_clouds_1, \
-        is_pad_1, _, \
+        is_pad_1, _, pos_2ds_1, \
         matches_gt, masks_gt, \
         im_paths_0, anno_paths_0, det_inds_0, im_paths_1, anno_paths_1, det_inds_1 = batch
         
-        data_0 = (fruitlet_ims_0, fruitlet_clouds_0, is_pad_0)
-        data_1 = (fruitlet_ims_1, fruitlet_clouds_1, is_pad_1)
+        data_0 = (fruitlet_ims_0, fruitlet_clouds_0, is_pad_0, pos_2ds_0)
+        data_1 = (fruitlet_ims_1, fruitlet_clouds_1, is_pad_1, pos_2ds_1)
 
         enc_0, enc_1, sim, z0, z1, pred_confidences, gt_confidences = self.associator(data_0, data_1, matches_gt)
         

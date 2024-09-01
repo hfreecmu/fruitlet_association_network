@@ -4,7 +4,7 @@ import numpy as np
 
 from data.dataset import CLOUD_STDS
 
-class FixedPositionalEncoder(nn.Module):
+class Fixed3DPositionalEncoder(nn.Module):
     def __init__(self,
                  d_model,
                  temperature,

@@ -6,7 +6,7 @@ loss_path: 'cfg/loss/loss_contrastive_l2.yml'
 ### change these two running bridges vs local
 # images and batch size
 #images_dir: &images_dir '/ocean/projects/agr240003p/hfreeman/t_ro/labels/selected_images/images'
-images_dir: &images_dir '/home/frc-ag-3/harry_ws/fruitlet_2023/labelling/inhand/tro_final/selected_images/images'
+images_dir: &images_dir 'labelling/selected_images/images'
 #batch_size: &batch_size 32
 batch_size: &batch_size 32
 ###
@@ -49,12 +49,27 @@ model_params:
     num_layers: 5
 
 train_params:
-  num_epochs: 40
+  num_epochs: 200
   lr: 1e-4
   weight_decay: 1e-5
-  gamma: 0.95
-  train_step: 10
-  augment: True
+
+  #scheduler: null
+  scheduler:
+    type: 'lr_step'
+    gamma: 0.95
+    train_step: 50
+
+    # type: 'warmup_cosine'
+    # warmup_epochs: 2
+    # max_epochs: 40
+
+  augment: 
+    bright_pct: 0.5
+    rotate_pct: 0.0
+    drop_cloud_pct: 0.6
+    drop_seg_pct: 0.2
+    crop_pct: 0.9
+    drop_fruitlet_pct: 0.2
 
   anno_root: *anno_root
   anno_subdir: 'train'
@@ -67,8 +82,10 @@ train_params:
   min_fruitlets_per_im: *min_fruitlets_per_im
   min_fruitlet_matches: *min_fruitlet_matches
 
+  is_test: False
+
 val_params:
-  augment: False
+  augment: null
 
   anno_root: *anno_root
   anno_subdir: 'val'
@@ -81,8 +98,10 @@ val_params:
   min_fruitlets_per_im: *min_fruitlets_per_im
   min_fruitlet_matches: *min_fruitlet_matches
 
+  is_test: False
+
 test_params:
-  augment: False
+  augment: null
 
   anno_root: *anno_root
   anno_subdir: 'test'
@@ -94,3 +113,5 @@ test_params:
   max_fruitlets: *max_fruitlets
   min_fruitlets_per_im: *min_fruitlets_per_im
   min_fruitlet_matches: *min_fruitlet_matches
+
+  is_test: True

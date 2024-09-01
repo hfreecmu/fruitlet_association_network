@@ -35,7 +35,7 @@ def get_fruitlet_transform(fruitlet_image_size):
 
     return fruitlet_transform
 
-def fruitlet_pad(num_pad, fruitlet_images, fruitlet_clouds, fruitlet_ids):    
+def fruitlet_pad(num_pad, fruitlet_images, fruitlet_clouds, fruitlet_ids, pos_2ds):    
     # to not affect batch norm will select a random fruitlet
     rand_fruitlet_inds = np.random.randint(low=0, high=fruitlet_images.shape[0], size=num_pad)
     images_to_cat = torch.clone(fruitlet_images[rand_fruitlet_inds])
@@ -48,7 +48,10 @@ def fruitlet_pad(num_pad, fruitlet_images, fruitlet_clouds, fruitlet_ids):
     ids_to_cat = np.zeros((num_pad), dtype=fruitlet_ids.dtype) - 2
     fruitlet_ids = np.concatenate([fruitlet_ids, ids_to_cat])
 
-    return fruitlet_images, fruitlet_clouds, fruitlet_ids
+    pos_2ds_to_cat = np.copy(pos_2ds[rand_fruitlet_inds])
+    pos_2ds = np.concatenate([pos_2ds, pos_2ds_to_cat])
+
+    return fruitlet_images, fruitlet_clouds, fruitlet_ids, pos_2ds
 
 class AssociationDataset(DatasetInterface):
     def __init__(self,
@@ -106,6 +109,7 @@ class AssociationDataset(DatasetInterface):
         fruitlet_ims = []
         cloud_boxes = []
         fruitlet_ids = []
+        pos_2ds = []
 
         if self.augment and (np.random.uniform() < self.augment.rotate_pct):
             rotate_rand = np.random.uniform()
@@ -189,7 +193,6 @@ class AssociationDataset(DatasetInterface):
             round_x1 = int(np.round(x1))
             round_y1 = int(np.round(y1))
 
-            
             fruitlet_im = image[:, round_y0:round_y1, round_x0:round_x1]
             seg_im = torch.zeros_like(image[0:1, :, :])
             seg_im[:, seg_inds[:, 0], seg_inds[:, 1]] = 1.0
@@ -197,6 +200,12 @@ class AssociationDataset(DatasetInterface):
 
             # combine fruitlet im and seg_im
             fruitlet_im = torch.concatenate([fruitlet_im, seg_im])
+
+            # for 2d pos encoding
+            pos_x0 = round_x0
+            pos_y0 = round_y0
+            pos_x1 = round_x1
+            pos_y1 = round_y1
 
             # random crop for image
             if self.augment and (np.random.uniform() < self.augment.crop_pct):
@@ -208,7 +217,14 @@ class AssociationDataset(DatasetInterface):
                 
                 fruitlet_im = torchvision.transforms.functional.crop(fruitlet_im,
                                                                      i, j, h, w)
+                
+                pos_x0 = pos_x0 + j
+                pos_y0 = pos_y0 + i
+                pos_x1 = pos_x0 + w
+                pos_y1 = pos_y0 + h
+
             _, fruitlet_height, fruitlet_width = fruitlet_im.shape
+            pos_2d = np.array([pos_x0, pos_y0, pos_x1, pos_y1], dtype=float)
 
             # pad fruitlet_im
             # (left, right, top, bottom)
@@ -232,11 +248,13 @@ class AssociationDataset(DatasetInterface):
             cloud_boxes.append(box_3d)
             fruitlet_ids.append(fruitlet_id)
             used_det_inds.append(det_ind)
+            pos_2ds.append(pos_2d)
 
         fruitlet_ims = torch.stack(fruitlet_ims)
         cloud_boxes = np.stack(cloud_boxes)
         fruitlet_ids = np.array(fruitlet_ids)
         used_det_inds = np.array(used_det_inds)
+        pos_2ds = np.array(pos_2ds)
 
         # rand drop a single fruitlet from assoc
         if self.augment and can_drop \
@@ -254,12 +272,25 @@ class AssociationDataset(DatasetInterface):
         # if should flip then flip left and right cloud images
         if should_flip:
             fruitlet_ims = torch.flip(fruitlet_ims, dims=(-1,))
+            pos_2ds[:, 0] = image.shape[2] - pos_2ds[:, 0]
+            pos_2ds[:, 2] = image.shape[2] - pos_2ds[:, 2]
+        
+        # normalize pos_2ds
+        cxs = (pos_2ds[:, 0] + pos_2ds[:, 2]) / 2
+        cys = (pos_2ds[:, 1] + pos_2ds[:, 3]) / 2
+        cx_mean = cxs.mean()
+        cy_mean = cys.mean()
+        pos_2ds[:, 0] -= cx_mean
+        pos_2ds[:, 2] -= cx_mean
+        pos_2ds[:, 1] -= cy_mean
+        pos_2ds[:, 3] -= cy_mean
+        #TODO sqeueze between 0 and 1?
 
-        return fruitlet_ims, cloud_boxes, fruitlet_ids, used_det_inds
+        return fruitlet_ims, cloud_boxes, fruitlet_ids, used_det_inds, pos_2ds
 
     def _get_data(self, entry, should_flip, can_drop):
         file_key, annotations_path, image_path = entry
-        fruitlet_ims, cloud_boxes, fruitlet_ids, used_det_inds = self.load_data(annotations_path, image_path, should_flip, can_drop)
+        fruitlet_ims, cloud_boxes, fruitlet_ids, used_det_inds, pos_2ds = self.load_data(annotations_path, image_path, should_flip, can_drop)
 
         is_pad = np.zeros((self.max_fruitlets), dtype=bool)
         num_pad = self.max_fruitlets - fruitlet_ims.shape[0]
@@ -270,7 +301,7 @@ class AssociationDataset(DatasetInterface):
             raise RuntimeError('Too many fruitlets')
         
         if num_pad > 0:
-            fruitlet_ims, cloud_boxes, fruitlet_ids = fruitlet_pad(num_pad, fruitlet_ims, cloud_boxes, fruitlet_ids)
+            fruitlet_ims, cloud_boxes, fruitlet_ids, pos_2ds = fruitlet_pad(num_pad, fruitlet_ims, cloud_boxes, fruitlet_ids, pos_2ds)
             is_pad[-num_pad:] = True
 
             used_det_inds_pad = np.zeros((self.max_fruitlets), dtype=int)
@@ -283,10 +314,13 @@ class AssociationDataset(DatasetInterface):
             cloud_boxes = cloud_boxes[randperm]
             is_pad = is_pad[randperm]
             fruitlet_ids = fruitlet_ids[randperm]
+            pos_2ds = pos_2ds[randperm]
+            used_det_inds = used_det_inds[randperm]
 
         cloud_boxes = cloud_boxes.astype(np.float32)
+        pos_2ds = pos_2ds.astype(np.float32)
 
-        return file_key, fruitlet_ims, cloud_boxes, is_pad, fruitlet_ids, image_path, annotations_path, used_det_inds
+        return file_key, fruitlet_ims, cloud_boxes, is_pad, fruitlet_ids, image_path, annotations_path, used_det_inds, pos_2ds
 
     def __getitem__(self, index):
         entry_0, entry_1 = self.file_data[index]
@@ -304,8 +338,8 @@ class AssociationDataset(DatasetInterface):
             if np.random.uniform() < self.augment.drop_fruitlet_pct:
                 can_drop_0 = True
 
-        file_key_0, fruitlet_ims_0, cloud_boxes_0, is_pad_0, fruitlet_ids_0, im_path_0, anno_path_0, det_inds_0 = self._get_data(entry_0, should_flip, can_drop_0)
-        file_key_1, fruitlet_ims_1, cloud_boxes_1, is_pad_1, fruitlet_ids_1, im_path_1, anno_path_1, det_inds_1 = self._get_data(entry_1, should_flip, False)
+        file_key_0, fruitlet_ims_0, cloud_boxes_0, is_pad_0, fruitlet_ids_0, im_path_0, anno_path_0, det_inds_0, pos_2ds_0 = self._get_data(entry_0, should_flip, can_drop_0)
+        file_key_1, fruitlet_ims_1, cloud_boxes_1, is_pad_1, fruitlet_ids_1, im_path_1, anno_path_1, det_inds_1, pos_2ds_1 = self._get_data(entry_1, should_flip, False)
 
         matches_gt = np.zeros((self.max_fruitlets, self.max_fruitlets)).astype(np.float32)
         masks_gt = np.ones((self.max_fruitlets, self.max_fruitlets)).astype(np.float32)
@@ -326,15 +360,15 @@ class AssociationDataset(DatasetInterface):
 
         if not self.is_test:
             return file_key_0, fruitlet_ims_0, cloud_boxes_0, \
-                is_pad_0, fruitlet_ids_0, \
+                is_pad_0, fruitlet_ids_0, pos_2ds_0, \
                 file_key_1, fruitlet_ims_1, cloud_boxes_1, \
-                is_pad_1, fruitlet_ids_1, \
+                is_pad_1, fruitlet_ids_1, pos_2ds_1, \
                 matches_gt, masks_gt
         else:
             return file_key_0, fruitlet_ims_0, cloud_boxes_0, \
-                is_pad_0, fruitlet_ids_0, \
+                is_pad_0, fruitlet_ids_0, pos_2ds_0, \
                 file_key_1, fruitlet_ims_1, cloud_boxes_1, \
-                is_pad_1, fruitlet_ids_1, \
+                is_pad_1, fruitlet_ids_1, pos_2ds_1, \
                 matches_gt, masks_gt, \
                 im_path_0, anno_path_0, det_inds_0, \
                 im_path_1, anno_path_1, det_inds_1
