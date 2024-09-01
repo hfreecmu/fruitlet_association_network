@@ -18,11 +18,14 @@ class Fixed3DPositionalEncoder(nn.Module):
         self.bin_size = orig_resolution
 
         # has to be even number
-        self.num_pos_feats = d_model // 6
+        self.num_pos_feats = d_model // 5
+        if self.num_pos_feats % 2 == 1:
+            self.num_pos_feats -= 1
+
         pad = d_model - self.num_pos_feats * 5
         self.zero_pad = nn.ZeroPad2d((pad, 0, 0, 0))  # left padding
         
-    def forward(self, x): 
+    def encode(self, x):
         # x = x // self._bin_size
         x = x / self.bin_size
 
@@ -44,5 +47,12 @@ class Fixed3DPositionalEncoder(nn.Module):
         pos = torch.cat((pos_x_min, pos_x_max, pos_y_min, pos_y_max, pos_z_med), dim=2)
 
         enc = self.zero_pad(pos)
+
+        return enc
+
+    def forward(self, x): 
+        enc = self.encode(x)
+        
+        enc = torch.where((x[:, :, -1] == 1.0)[:, :, None], enc, torch.zeros_like(enc) - 1.0)
 
         return enc

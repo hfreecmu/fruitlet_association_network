@@ -9,15 +9,11 @@ class ICPAssociationDataset(DatasetInterface):
                  anno_root,
                  anno_subdir,
                  images_dir,
-                 cache,
-                 min_fruitlets_per_im,
-                 min_fruitlet_matches,
                  is_test,
                  **kwargs
                  ):
         
         super().__init__(anno_root, anno_subdir, images_dir,
-                         cache, min_fruitlets_per_im, min_fruitlet_matches,
                          is_test)
 
     def __len__(self):

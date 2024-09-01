@@ -309,7 +309,7 @@ class Annotate():
 image_dir = 'labelling/selected_images/images'
 detections_dir = 'labelling/detections'
 output_dir = 'labelling/id_annotations'
-year = 2022
+year = 2021
 side = 'left'
 
 if __name__ == "__main__":

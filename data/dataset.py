@@ -61,21 +61,16 @@ class AssociationDataset(DatasetInterface):
                  image_size,
                  encoder_type,
                  augment,
-                 cache,
                  max_fruitlets,
-                 min_fruitlets_per_im,
-                 min_fruitlet_matches,
                  is_test,
                  **kwargs
                  ):
         
         super().__init__(anno_root, anno_subdir, images_dir,
-                         cache, min_fruitlets_per_im, min_fruitlet_matches,
                          is_test)
 
         self.max_fruitlets = max_fruitlets
         self.augment = augment
-        self.min_fruitlet_matches = min_fruitlet_matches
 
         if encoder_type == 'vit':
             mean = OPENAI_DATASET_MEAN
@@ -111,6 +106,8 @@ class AssociationDataset(DatasetInterface):
         fruitlet_ids = []
         pos_2ds = []
 
+        full_cloud_points = {}
+
         if self.augment and (np.random.uniform() < self.augment.rotate_pct):
             rotate_rand = np.random.uniform()
             rotate_theta = np.deg2rad(np.random.uniform(-10, 10))
@@ -139,34 +136,35 @@ class AssociationDataset(DatasetInterface):
                 continue
 
             # get cloud_points
-            cloud_points = np.array(det['cloud_points'])
+            if len(det['cloud_points']) > 0:
+                cloud_points = np.array(det['cloud_points'])
 
-            # normalize
-            cloud_points = (cloud_points - CLOUD_MEANS) / CLOUD_STDS
+                # normalize
+                cloud_points = (cloud_points - CLOUD_MEANS) / CLOUD_STDS
 
-            # if should flip then cloud points are flipped along the x axis
-            if should_flip:
-                cloud_points[:, 0] = -cloud_points[:, 0]
+                # if should flip then cloud points are flipped along the x axis
+                if should_flip:
+                    cloud_points[:, 0] = -cloud_points[:, 0]
 
-            # rotate cloud points after flipping
-            cloud_points = (rotation @ cloud_points.T).T
+                # rotate cloud points after flipping
+                cloud_points = (rotation @ cloud_points.T).T
 
-            # rand drop 10% of cloud points
-            # will not have effect unless min / max is dropped
-            if self.augment and (np.random.uniform() < self.augment.drop_cloud_pct):
-                clouds_to_keep = int(np.round(cloud_points.shape[0]*0.9))
-                rand_inds = np.random.permutation(cloud_points.shape[0])
-                cloud_points = cloud_points[rand_inds[0:clouds_to_keep]] 
+                # rand drop 10% of cloud points
+                # will not have effect unless min / max is dropped
+                if self.augment and (np.random.uniform() < self.augment.drop_cloud_pct):
+                    clouds_to_keep = int(np.round(cloud_points.shape[0]*0.9))
+                    rand_inds = np.random.permutation(cloud_points.shape[0])
+                    cloud_points = cloud_points[rand_inds[0:clouds_to_keep]] 
 
-            # get mins and maxes
-            mins = cloud_points.min(axis=0)
-            maxs = cloud_points.max(axis=0)
-            medians = np.median(cloud_points, axis=0)
-            if (maxs - mins).max() > 0.05:
-                print('MAJOR WARNING: box dims very')
-                print(annotations_path)
+                # get mins and maxes
+                mins = cloud_points.min(axis=0)
+                maxs = cloud_points.max(axis=0)
+                medians = np.median(cloud_points, axis=0)
 
-            box_3d = np.array([mins[0], maxs[0], mins[1], maxs[1], medians[2]])
+                full_cloud_points[det_ind] = cloud_points
+                box_3d = np.array([mins[0], maxs[0], mins[1], maxs[1], medians[2], 1.0])
+            else:
+                box_3d = [-1.0, -1.0, -1.0, -1.0, -1.0, 0.0]
             
             x0 = det["x0"]
             y0 = det["y0"]
@@ -250,19 +248,32 @@ class AssociationDataset(DatasetInterface):
         pos_2ds = np.array(pos_2ds)
 
         # rand drop a single fruitlet from assoc
+        # only if more than 3
         if self.augment and can_drop \
-            and fruitlet_ims.shape[0] > self.min_fruitlet_matches:
+            and fruitlet_ims.shape[0] > 3:
 
             rand_drop_ind = np.random.randint(0, fruitlet_ims.shape[0])
             fruitlet_ims = torch.concatenate([fruitlet_ims[0:rand_drop_ind], fruitlet_ims[rand_drop_ind+1:]])
             cloud_boxes = np.concatenate([cloud_boxes[0:rand_drop_ind], cloud_boxes[rand_drop_ind+1:]])
             fruitlet_ids = np.concatenate([fruitlet_ids[0:rand_drop_ind], fruitlet_ids[rand_drop_ind+1:]])
             pos_2ds = np.concatenate([pos_2ds[0:rand_drop_ind], pos_2ds[rand_drop_ind+1:]])
+            
+            if used_det_inds[rand_drop_ind] in full_cloud_points:
+                del full_cloud_points[used_det_inds[rand_drop_ind]]
+
             used_det_inds = np.concatenate([used_det_inds[0:rand_drop_ind], used_det_inds[rand_drop_ind+1:]])
 
-        # not sure about this but doing it
-        # yes needed
-        cloud_boxes = cloud_boxes - cloud_boxes.mean(axis=(0))
+
+        if len(full_cloud_points) > 0:
+            full_cloud_points = [full_cloud_points[key] for key in full_cloud_points]
+            full_cloud_points = np.concatenate(full_cloud_points)
+
+            mean_3d = np.mean(full_cloud_points, axis=0)
+
+            cloud_box_adjust_inds = (cloud_boxes[:, -1] == 1.0)
+            cloud_boxes[cloud_box_adjust_inds, 0:2] -= mean_3d[0]
+            cloud_boxes[cloud_box_adjust_inds, 2:4] -= mean_3d[1]
+            cloud_boxes[cloud_box_adjust_inds, 4] -= mean_3d[2]
 
         # if should flip then flip left and right cloud images
         if should_flip:
@@ -279,7 +290,8 @@ class AssociationDataset(DatasetInterface):
         pos_2ds[:, 2] -= cx_mean
         pos_2ds[:, 1] -= cy_mean
         pos_2ds[:, 3] -= cy_mean
-        #TODO sqeueze between 0 and 1?
+        #TODO make them between 0 and 1?
+        # same applies to 3d?
 
         return fruitlet_ims, cloud_boxes, fruitlet_ids, used_det_inds, pos_2ds
 

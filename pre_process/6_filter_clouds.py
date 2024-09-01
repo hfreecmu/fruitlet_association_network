@@ -38,19 +38,12 @@ def create_point_cloud(cloud_path, points, colors, normals=None, estimate_normal
         cloud
     )
 
-pointcloud_dir = '/home/frc-ag-3/harry_ws/fruitlet_2023/labelling/inhand/tro_final/point_clouds'
-annotations_dir = '/home/frc-ag-3/harry_ws/fruitlet_2023/labelling/inhand/tro_final/id_annotations'
-image_dir = '/home/frc-ag-3/harry_ws/fruitlet_2023/labelling/inhand/tro_final/selected_images/images'
-det_dir = '/home/frc-ag-3/harry_ws/fruitlet_2023/labelling/inhand/tro_final/detections'
-output_dir = '/home/frc-ag-3/harry_ws/fruitlet_2023/labelling/inhand/tro_final/vis_point_clouds_filtered'
-anno_output_dir = '/home/frc-ag-3/harry_ws/fruitlet_2023/labelling/inhand/tro_final/id_annotations_filtered'
-
-num_total_fruitlets = 0
-num_processed_fruitlets = 0
-filtered_set = set()
-skipped_set = set()
-never_had_set = set()
-max_size = 0
+pointcloud_dir = 'labelling/point_clouds'
+annotations_dir = 'labelling/id_annotations'
+image_dir = 'labelling/selected_images/images'
+det_dir = 'labelling/detections'
+output_dir = 'labelling/vis_points_clouds_filtered'
+anno_output_dir = 'labelling/id_annotations_filtered'
 
 full_pos = []
 for filename in os.listdir(annotations_dir):
@@ -73,13 +66,12 @@ for filename in os.listdir(annotations_dir):
     orig_cloud = []
     orig_colors = []
     tracked_dets = []
-    tracked_seg_inds = []
 
     for (fruitlet_cloud, det, seg_inds) in zip(seg_clouds, annotations, segmentations):
         if det['fruitlet_id'] < 0:
             continue
 
-        num_total_fruitlets += 1
+        det['seg_inds'] = seg_inds.tolist()
 
         colors = image[seg_inds[:, 0], seg_inds[:, 1]]
 
@@ -100,19 +92,13 @@ for filename in os.listdir(annotations_dir):
         # and don't want to naively change without testing
         # by cloud I mean the voxel down result but empty should be same?
         if fruitlet_cloud.shape[0] == 0:
-            skipped_set.add(filename)
-            # set as removed which we will use as -1
-            # if we do augmenting later have to think about this
-            det['fruitlet_id'] = -1
+            det['cloud_points'] = []
             continue
             
         cloud, radius_inds = cloud.remove_radius_outlier(nb_points=20, radius=0.002)
         
         if np.array(cloud.points).shape[0] == 0:
-            filtered_set.add(filename)
-            # set as removed which we will use as -1
-            # if we do augmenting later have to think about this
-            det['fruitlet_id'] = -1
+            det['cloud_points'] = []
             continue
         
         fruitlet_cloud = np.array(cloud.points)
@@ -125,19 +111,17 @@ for filename in os.listdir(annotations_dir):
         colors = colors[good_inds]
         
         if fruitlet_cloud.shape[0] < 50:
-            filtered_set.add(filename)
-            # set as removed which we will use as -1
-            # if we do augmenting later have to think about this
-            det['fruitlet_id'] = -1
+            det['cloud_points'] = []
             continue
 
         cluster_cloud.append(fruitlet_cloud)
         cluster_colors.append(colors)
         tracked_dets.append(det)
-        tracked_seg_inds.append(seg_inds)
 
-        num_processed_fruitlets += 1
-        max_size = np.max([max_size, fruitlet_cloud.shape[0]])
+    if len(orig_cloud) == 0:
+        # happens when flagged and I did not labbel
+        assert full_annotations['flagged'] == True
+        continue
 
     anno_output_path = os.path.join(anno_output_dir, filename)
     write_json(anno_output_path, full_annotations)
@@ -145,19 +129,8 @@ for filename in os.listdir(annotations_dir):
     orig_cloud = np.concatenate(orig_cloud)
     orig_colors = np.concatenate(orig_colors)
     vis_path = os.path.join(output_dir, filename.replace('.json', '_orig.pcd'))
-    
-    if len(orig_cloud) == 0 and filename not in skipped_set:
-        never_had_set.add(filename)
-        continue
-    elif len(orig_cloud) == 0:
-        continue
 
     create_point_cloud(vis_path, orig_cloud, orig_colors)
-
-    if len(cluster_cloud) == 0:
-        if not (filename in skipped_set or filename in filtered_set):
-            raise RuntimeError('Should not happen')
-        continue
 
     cluster_cloud_backup = cluster_cloud
     cluster_cloud = np.concatenate(cluster_cloud)
@@ -166,17 +139,15 @@ for filename in os.listdir(annotations_dir):
     if cluster_cloud.shape[0] == 0:
         raise RuntimeError('should not happen?')
     
-    # TODO should I use mean? I think so here
     mean_vals = cluster_cloud.mean(axis=0)
     for det_ind in range(len(tracked_dets)):
         det = tracked_dets[det_ind]
         fruitlet_cloud = cluster_cloud_backup[det_ind]
-        seg_inds = tracked_seg_inds[det_ind]
 
         centered_fruitlet_cloud = fruitlet_cloud - mean_vals
         det['cloud_points'] = centered_fruitlet_cloud.tolist()
-        det['seg_inds'] = seg_inds.tolist()
 
+    # I do want to do this
     anno_output_path = os.path.join(anno_output_dir, filename)
     write_json(anno_output_path, full_annotations)
 
@@ -198,11 +169,3 @@ print('MINS', mins)
 print('MAXS', maxs)
 print('MEANS', means)
 print('STDS', stds)
-
-print(max_size)
-print('never had set: ')
-print(never_had_set)
-print('skipped set: ')
-print(skipped_set)
-print('filtered set: ')
-print(filtered_set)
