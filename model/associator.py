@@ -23,6 +23,7 @@ class FruitletAssociator(nn.Module):
         vis_encoder_args['output_dim'] = d_model
         vis_encoder_args['image_size'] = image_size
         self.vis_encoder = get_vis_encoder(**vis_encoder_args)
+        self.encoder_type = vis_encoder_args['encoder_type']
 
         pos_encoder_args['d_model'] = d_model
         self.pos_encoder_3d = Fixed3DPositionalEncoder(**pos_encoder_args)
@@ -75,6 +76,10 @@ class FruitletAssociator(nn.Module):
 
         pos_enc_0 = pos_enc_0_3d + pos_enc_0_2d
         pos_enc_1 = pos_enc_1_3d + pos_enc_1_2d
+
+        if 'zero' in self.encoder_type:
+            vis_enc_0, vis_enc_1 = pos_enc_0, pos_enc_1
+            pos_enc_0, pos_enc_1 = None, None
         
         enc_0, enc_1 = self.encoder(vis_enc_0, vis_enc_1,
                                     src_key_padding_mask_0=is_pad_0,

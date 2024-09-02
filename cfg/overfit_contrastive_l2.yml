@@ -15,7 +15,8 @@ batch_size: &batch_size 32
 anno_root: &anno_root 'datasets'
 checkpoint_dir: 'lightning_logs'
 image_size: &image_size 128
-vis_encoder_type: &vis_encoder_type 'resnet-18'
+# vis_encoder_type: &vis_encoder_type 'resnet-18'
+vis_encoder_type: &vis_encoder_type 'zero'
 
 # dataset confg
 max_fruitlets: &max_fruitlets 8

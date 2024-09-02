@@ -75,7 +75,7 @@ class AssociationDataset(DatasetInterface):
         if encoder_type == 'vit':
             mean = OPENAI_DATASET_MEAN
             std = OPENAI_DATASET_STD
-        elif 'resnet' in encoder_type:
+        elif 'resnet' in encoder_type or 'zero' in encoder_type:
             mean = IMAGENET_MEAN
             std = IMAGENET_STD
         else:
