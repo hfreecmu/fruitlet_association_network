@@ -8,14 +8,22 @@ import lightning as L
 def unravel_clouds(clouds, cloud_inds, fruitlet_ids):
     fruitlet_clouds = []
     centroids = []
+    has_points = []
     for fruitlet_id in fruitlet_ids:
         cloud_points = clouds[cloud_inds == fruitlet_id]
+        if cloud_points.shape[0] == 0:
+            has_points.append(False)
+        else:
+            has_points.append(True)
+
         fruitlet_clouds.append(cloud_points)
 
         centroids.append(cloud_points.mean(axis=0).numpy())
     
     centroids = np.array(centroids)
-    return fruitlet_clouds, centroids
+    has_points = np.array(has_points)
+    
+    return fruitlet_clouds, centroids, has_points
 
 class ICPAssociator(L.LightningModule):
     def __init__(self,
@@ -24,10 +32,9 @@ class ICPAssociator(L.LightningModule):
 
         self.errors = []
 
-
     def forward(self, data_0, data_1):
-        _, centroids_0 = unravel_clouds(*data_0)
-        _, centroids_1 = unravel_clouds(*data_1)
+        _, centroids_0, has_points_0 = unravel_clouds(*data_0)
+        _, centroids_1, has_points_1 = unravel_clouds(*data_1)
 
         full_cloud_0 = data_0[0]
         full_cloud_1 = data_1[0]
@@ -66,7 +73,12 @@ class ICPAssociator(L.LightningModule):
 
         dist = cdist(centroids_0, centroids_1_new)
 
-        row_inds, col_inds = linear_sum_assignment(dist)
+        val_inds_0 = np.arange(has_points_0.shape[0])[has_points_0]
+        val_inds_1 = np.arange(has_points_1.shape[0])[has_points_1]
+
+        row_inds, col_inds = linear_sum_assignment(dist[has_points_0][:, has_points_1])
+        row_inds = val_inds_0[row_inds]
+        col_inds = val_inds_1[col_inds]
 
         match_matrix = np.zeros((fruitlet_ids_0.shape[0], fruitlet_ids_1.shape[0]),
                                 dtype=np.float32)

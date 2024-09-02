@@ -43,8 +43,8 @@ def split_data(annotations_dir, train_pct, val_pct, train_dir, val_dir, test_dir
 
             shutil.copyfile(src, dest)
 
-train_pct = 0.70
-val_pct = 0.15
+train_pct = 0.60
+val_pct = 0.21
 annotations_dir = 'labelling/id_annotations_filtered'
 train_dir = 'datasets/train'
 val_dir = 'datasets/val'

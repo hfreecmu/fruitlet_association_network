@@ -4,6 +4,7 @@ import json
 import pickle
 import tkinter
 from PIL import Image, ImageDraw, ImageTk 
+import distinctipy
 
 circule_radius = 2
 
@@ -26,6 +27,7 @@ def read_pickle(path):
     with open(path, "rb") as f:
         return pickle.load(f)
 
+ALPHA = 0.4
 class Annotate():
     def __init__(self, image_dir, detections_dir, output_dir, year, side):
         self.image_dir = image_dir
@@ -37,6 +39,7 @@ class Annotate():
         self.should_quit = None
         self.should_delete = None
         self.should_save = None
+        self.disp_seg = None
         self.curr_index = None
         self.prev_index = None
         self.num_files = None
@@ -56,6 +59,7 @@ class Annotate():
         self.files = sorted(self.files)
 
         self.should_quit = False
+        self.disp_seg = False
         self.curr_index = 0
         self.prev_index = None
         self.num_files = len(self.files)
@@ -70,7 +74,9 @@ class Annotate():
             image_path = os.path.join(self.image_dir, file_key)
             detections_path = os.path.join(self.detections_dir, file_key.replace('.png', '.pkl'))
 
-            boxes = read_pickle(detections_path)['boxes']
+            det_info = read_pickle(detections_path)
+            boxes = det_info['boxes']
+            segmentations = det_info['segmentations']
 
             annotation_filename = file_key.replace('.png', '.json')
             annotation_path = os.path.join(self.output_dir, annotation_filename)
@@ -105,6 +111,15 @@ class Annotate():
             if resize:
                 raise RuntimeError('resize not supported yet')
             
+            if self.disp_seg:
+                picture = np.array(picture)
+                colors = distinctipy.get_colors(len(segmentations))
+                for color, seg_inds in zip(colors, segmentations):
+                    color = np.array([int(255*color[0]), int(255*color[1]), int(255*color[2])])
+                    
+                    picture[seg_inds[:, 0], seg_inds[:, 1]] = (color*ALPHA + picture[seg_inds[:, 0], seg_inds[:, 1]].astype(int)*(1-ALPHA)).astype(np.uint8)
+                picture = Image.fromarray(picture)
+
             picture_draw = ImageDraw.Draw(picture)
 
             is_valid = True
@@ -205,6 +220,9 @@ class Annotate():
             else:
                 self.curr_annotation_dict['flagged'] = True
             event.widget.quit()
+        elif character == 'v':
+            self.disp_seg = not self.disp_seg
+            event.widget.quit()
         elif character == 'c':
             self.label_mode = False
             self.fruitlet_num = None
@@ -293,10 +311,9 @@ class Annotate():
                     if id < 40:
                         continue  
 
-                if year == 2021:
-                    id = int(filename.split('_')[1])
-                    if id > 100:
-                        continue       
+                # if year == 2021:
+                #     id = int(filename.split('_')[1])
+                        
 
             if side is not None:
                 if not side in filename:

@@ -30,7 +30,11 @@ class ICPAssociationDataset(DatasetInterface):
             if det['fruitlet_id'] < 0:
                 continue
 
-            cloud_points = np.array(det['cloud_points'])
+            if len(det['cloud_points']) == 0:
+                cloud_points = np.zeros((0, 3))
+            else:
+                cloud_points = np.array(det['cloud_points'])
+                
             clouds.append(cloud_points)
             cloud_inds.append(np.zeros((cloud_points.shape[0])) + det['fruitlet_id'])
             fruitlet_ids.append(det['fruitlet_id'])
