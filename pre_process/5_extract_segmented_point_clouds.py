@@ -245,6 +245,7 @@ raft_middleburry_path = '/home/frc-ag-3/harry_ws/viewpoint_planning/segment_exp/
 camera_info_dir = 'camera_info'
 disparity_dir = '/home/frc-ag-3/harry_ws/fruitlet_2023/labelling/inhand/tro_final/disparity'
 output_dir = '/home/frc-ag-3/harry_ws/fruitlet_2023/labelling/inhand/tro_final/point_clouds'
+full_cloud_dir = '/home/frc-ag-3/harry_ws/fruitlet_2023/labelling/inhand/tro_final/full_point_clouds'
 device = 'cuda'
 
 vis = True
@@ -253,8 +254,8 @@ vis_dir = '/home/frc-ag-3/harry_ws/fruitlet_2023/labelling/inhand/tro_final/vis_
 
 if __name__ == "__main__":
 
-    raft_args = get_middle_model_args(raft_middleburry_path)
-    raft_model = load_raft_model(raft_args, device)
+    #raft_args = get_middle_model_args(raft_middleburry_path)
+    #raft_model = load_raft_model(raft_args, device)
 
     for filename in os.listdir(anno_dir):
         if not filename.endswith('.json'):
@@ -267,6 +268,12 @@ if __name__ == "__main__":
         left_image_path = os.path.join(image_dir, filename.replace('.json', '.png'))
         right_image_path = left_image_path.replace('left', 'right')
 
+        output_path = os.path.join(output_dir, filename.replace('.json', '.pkl'))
+        full_cloud_path = os.path.join(full_cloud_dir, filename.replace('.json', '.pcd'))
+        if os.path.exists(output_path):
+            print('Skipping: ', filename)
+            continue
+
         disparity_path = os.path.join(disparity_dir, filename.replace('.json', '.npy'))
         if os.path.exists(disparity_path):
             disparity = np.load(disparity_path)
@@ -274,15 +281,10 @@ if __name__ == "__main__":
             disparity = extract_raft_disparity(raft_model, left_image_path, right_image_path,
                                                raft_args.valid_iters, device)
             np.save(disparity_path, disparity)
-
-        output_path = os.path.join(output_dir, filename.replace('.json', '.pkl'))
-        if os.path.exists(output_path):
-            print('Skipping: ', filename)
-            continue
         
         camera_info_path = get_camera_info_path(camera_info_dir, left_image_path)
 
-        points, _ = extract_point_cloud(left_image_path, disparity, camera_info_path)
+        points, colors = extract_point_cloud(left_image_path, disparity, camera_info_path)
 
         segmentations = read_pickle(detections_path)['segmentations']
 
@@ -293,8 +295,15 @@ if __name__ == "__main__":
             fruitlet_cloud_points = points[seg_inds[:, 0], seg_inds[:, 1]]
             # for now leaving nans because why not
             cloud_points.append(fruitlet_cloud_points)
-            
+
+        ### now for full cloud here
+        nan_inds = np.isnan(points).any(axis=2)
+        full_cloud_points = points[~nan_inds]
+        full_cloud_colors = colors[~nan_inds]
+        ###
+
         write_pickle(output_path, cloud_points)
+        create_point_cloud(full_cloud_path, full_cloud_points, full_cloud_colors)
 
         if vis and num_vis > 0:
             num_vis -= 1
