@@ -6,6 +6,7 @@ from model.transformer.blocks_double import TransformerEncoderLayer, Transformer
 from model.positional_encoder.cloud_encoder import Fixed3DPositionalEncoder
 from model.positional_encoder.rotary_encoder import Rotary3DPositionalEncoder
 from model.positional_encoder.pheno_encoder import PhenoFixed3DPositionalEncoder
+from model.positional_encoder.pheno_rotary_encoder import PhenoRotary3DPositionalEncoder
 from model.positional_encoder.position_encoding import build_position_encoding
 from model.positional_encoder.zero_encoder import ZeroEncoder
 from model.model_util import get_vis_encoder
@@ -42,7 +43,9 @@ class FruitletAssociator(nn.Module):
             # self.pos_encoder_3d = Fixed3DPositionalEncoder(**pos_encoder_args)
             self.pos_encoder_3d = Rotary3DPositionalEncoder(**pos_encoder_args)
         else:
-            self.pos_encoder_3d = PhenoFixed3DPositionalEncoder(**pos_encoder_args)
+            #change this and above for rotary
+            # self.pos_encoder_3d = PhenoFixed3DPositionalEncoder(**pos_encoder_args)
+            self.pos_encoder_3d = PhenoRotary3DPositionalEncoder(**pos_encoder_args)
 
         self.d_model = d_model
         self.scale = d_model**0.5
