@@ -1,12 +1,12 @@
 ### Params to change between exps:
-exp_name: 'contrastive_l2_full_new'
+exp_name: 'contrastive_l2_full_pos_only_new_data_dropout'
 loss_path: 'cfg/loss/loss_contrastive_l2.yml'
 ###
 
 ### change these two running bridges vs local
 # images and batch size
-#images_dir: &images_dir '/ocean/projects/agr240003p/hfreeman/t_ro/labels/selected_images/images'
-images_dir: &images_dir 'labelling/selected_images/images'
+images_dir: &images_dir '/ocean/projects/agr240003p/hfreeman/t_ro/labels/selected_images/images'
+#images_dir: &images_dir 'labelling/selected_images/images'
 #batch_size: &batch_size 32
 batch_size: &batch_size 32
 ###
@@ -23,7 +23,7 @@ max_fruitlets: &max_fruitlets 8
 
 # checkpoint metrics
 checkpoint_metrics:
-    metric_type: 'val_loss'
+    metric_type: 'f1' #'val_loss'
     is_min: True
 
 model_params:
@@ -42,20 +42,20 @@ model_params:
   trans_encoder_args:
     nhead: 8
     dim_feedforward: 2048
-    dropout: 0.0
+    dropout: 0.1
     normalize_before: True
     num_layers: 4
 
 train_params:
   num_epochs: 200
   lr: 1e-4
-  weight_decay: 1e-5
+  weight_decay: null # 1e-5
 
   #scheduler: null
   scheduler:
     type: 'lr_step'
-    gamma: 0.95
-    train_step: 50
+    gamma: 0.90
+    train_step: 20
 
     # type: 'warmup_cosine'
     # warmup_epochs: 2
@@ -64,10 +64,10 @@ train_params:
   augment: 
     bright_pct: 0.0
     rotate_pct: 0.0
-    drop_cloud_pct: 0.6
-    drop_seg_pct: 0.2
+    drop_cloud_pct: 0.9 # want more now
+    drop_seg_pct: 0.0 # no effect without pos
     crop_pct: 0.9
-    drop_fruitlet_pct: 0.2
+    drop_fruitlet_pct: 0.4 # want more now
 
   anno_root: *anno_root
   anno_subdir: 'train'
