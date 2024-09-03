@@ -1,27 +1,24 @@
 ### Params to change between exps:
-exp_name: 'contrastive_l2_overfit_debug'
+exp_name: 'pheno_overfit'
 loss_path: 'cfg/loss/loss_contrastive_l2.yml'
-is_pheno: False
+is_pheno: True
 ###
 
 ### change these two running bridges vs local
-# images and batch size
-#images_dir: &images_dir '/ocean/projects/agr240003p/hfreeman/t_ro/labels/selected_images/images'
-images_dir: &images_dir 'labelling/selected_images/images'
+#batch size
 #batch_size: &batch_size 32
 batch_size: &batch_size 32
 ###
 
 # data and logging
-anno_root: &anno_root 'datasets'
+anno_root: &anno_root 'datasets/pheno'
+pheno_type: &pheno_type 'tomato'
 checkpoint_dir: 'lightning_logs'
-image_size: &image_size 128
-# vis_encoder_type: &vis_encoder_type 'resnet-18'
 vis_encoder_type: &vis_encoder_type 'zero'
-pos_encoder_type: &pos_encoder_type 'harmonic'
+pos_encoder_type: &pos_encoder_type 'zero'
 
 # dataset confg
-max_fruitlets: &max_fruitlets 8
+max_comps: &max_comps 42
 
 # checkpoint metrics
 checkpoint_metrics:
@@ -30,7 +27,8 @@ checkpoint_metrics:
 
 model_params:
   d_model: 512
-  image_size: *image_size
+
+  image_size: null
 
   vis_encoder_args:
     pretrained: True
@@ -39,7 +37,7 @@ model_params:
 
   pos_encoder_args:
     temperature: 10000
-    orig_resolution: 0.02
+    orig_resolution: 80
     pos_encoder_type: *pos_encoder_type
 
   trans_encoder_args:
@@ -52,34 +50,32 @@ model_params:
 train_params:
   num_epochs: 200
   lr: 1e-4
-  weight_decay: 1e-5
+  weight_decay: null #1e-5
 
   #scheduler: null
   scheduler:
     type: 'lr_step'
-    gamma: 0.95
-    train_step: 50
+    gamma: 0.90
+    train_step: 20
 
     # type: 'warmup_cosine'
     # warmup_epochs: 2
     # max_epochs: 40
 
-  augment: 
-    bright_pct: 0.0
-    rotate_pct: 0.0
-    drop_cloud_pct: 0.6
-    drop_seg_pct: 0.0
-    crop_pct: 0.9
-    drop_fruitlet_pct: 0.2
-  # augment: null
+  # augment: 
+  #   rotate_pct: 0.0
+  #   drop_cloud_pct: 0.9
+  #   drop_pct: 0.4
+
+  augment: null
 
   anno_root: *anno_root
+  pheno_type: *pheno_type
   anno_subdir: 'mini'
-  images_dir: *images_dir
-  image_size: *image_size
+
   encoder_type: *vis_encoder_type
 
-  max_fruitlets: *max_fruitlets
+  max_comps: *max_comps
 
   is_test: False
 
@@ -87,12 +83,12 @@ val_params:
   augment: null
 
   anno_root: *anno_root
+  pheno_type: *pheno_type
   anno_subdir: 'mini'
-  images_dir: *images_dir
-  image_size: *image_size
+
   encoder_type: *vis_encoder_type
 
-  max_fruitlets: *max_fruitlets
+  max_comps: *max_comps
 
   is_test: False
 
@@ -100,11 +96,11 @@ test_params:
   augment: null
 
   anno_root: *anno_root
+  pheno_type: *pheno_type
   anno_subdir: 'mini'
-  images_dir: *images_dir
-  image_size: *image_size
+
   encoder_type: *vis_encoder_type
 
-  max_fruitlets: *max_fruitlets
+  max_comps: *max_comps
 
   is_test: True

@@ -1,7 +1,7 @@
 import os
 from torch.utils.data import Dataset
 
-from util.util import get_identifier, read_json
+from util.util import get_identifier
 
 class DatasetInterface(Dataset):
     def __init__(self,

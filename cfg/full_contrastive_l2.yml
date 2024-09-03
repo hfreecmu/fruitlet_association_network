@@ -1,6 +1,7 @@
 ### Params to change between exps:
 exp_name: 'contrastive_l2_full_pos_only_new_data_dropout'
 loss_path: 'cfg/loss/loss_contrastive_l2.yml'
+is_pheno: False
 ###
 
 ### change these two running bridges vs local
@@ -17,6 +18,7 @@ checkpoint_dir: 'lightning_logs'
 image_size: &image_size 128
 # vis_encoder_type: &vis_encoder_type 'resnet-18'
 vis_encoder_type: &vis_encoder_type 'zero'
+pos_encoder_type: &pos_encoder_type 'harmonic'
 
 # dataset confg
 max_fruitlets: &max_fruitlets 8
@@ -38,6 +40,7 @@ model_params:
   pos_encoder_args:
     temperature: 10000
     orig_resolution: 0.02
+    pos_encoder_type: *pos_encoder_type
 
   trans_encoder_args:
     nhead: 8

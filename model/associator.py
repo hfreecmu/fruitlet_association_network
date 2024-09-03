@@ -4,7 +4,9 @@ import torch.nn.functional as F
 
 from model.transformer.blocks_double import TransformerEncoderLayer, TransformerEncoder, MLP
 from model.positional_encoder.cloud_encoder import Fixed3DPositionalEncoder
+from model.positional_encoder.pheno_encoder import PhenoFixed3DPositionalEncoder
 from model.positional_encoder.position_encoding import build_position_encoding
+from model.positional_encoder.zero_encoder import ZeroEncoder
 from model.model_util import get_vis_encoder
 
 class FruitletAssociator(nn.Module):
@@ -16,6 +18,7 @@ class FruitletAssociator(nn.Module):
                  trans_encoder_args,
                  loss_params,
                  include_bce,
+                 is_pheno=False,
                  **kwargs,
                  ):
         super().__init__()
@@ -26,8 +29,16 @@ class FruitletAssociator(nn.Module):
         self.encoder_type = vis_encoder_args['encoder_type']
 
         pos_encoder_args['d_model'] = d_model
-        self.pos_encoder_3d = Fixed3DPositionalEncoder(**pos_encoder_args)
-        self.pos_encoder_2d = build_position_encoding(d_model)
+
+        if 'zero' in pos_encoder_args['pos_encoder_type']:
+            self.pos_encoder_2d = ZeroEncoder(d_model)
+        else:
+            self.pos_encoder_2d = build_position_encoding(d_model)
+
+        if not is_pheno:
+            self.pos_encoder_3d = Fixed3DPositionalEncoder(**pos_encoder_args)
+        else:
+            self.pos_encoder_3d = PhenoFixed3DPositionalEncoder(**pos_encoder_args)
 
         self.d_model = d_model
         self.scale = d_model**0.5

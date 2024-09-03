@@ -7,10 +7,13 @@ from lightning.pytorch.callbacks import ModelCheckpoint
 from lightning.pytorch.loggers import TensorBoardLogger
 
 from data.dataset import AssociationDataset
+from data.pheno_dataset import PhenoDataset
 from model.lightning_associator import LightningAssociator
+from model.pheno_lightning_associator import PhenoLightningAssociator
 from util.util import load_cfg, get_checkpoint_path
 
-def train(train_params, 
+def train(is_pheno,
+          train_params, 
           val_params, 
           model_params, 
           loss_params,
@@ -21,8 +24,15 @@ def train(train_params,
           checkpoint_metrics,
           **kwargs):
     
-    train_dataset = AssociationDataset(**train_params)
-    val_dataset = AssociationDataset(**val_params)
+    if not is_pheno:
+        data_class = AssociationDataset
+        model_class = LightningAssociator
+    else:
+        data_class = PhenoDataset
+        model_class = PhenoLightningAssociator
+
+    train_dataset = data_class(**train_params)
+    val_dataset = data_class(**val_params)
 
     print('Len train dataset: ', len(train_dataset))
     print('Len val dataset: ', len(val_dataset))
@@ -36,7 +46,7 @@ def train(train_params,
                             shuffle=False)
 
     if not include_bce:
-        model = LightningAssociator(loss_params=loss_params,
+        model = model_class(loss_params=loss_params,
                                     include_bce=include_bce,
                                     model_params=model_params,
                                     lr=train_params['lr'],
@@ -53,7 +63,7 @@ def train(train_params,
         # automatically restores model, epoch, step, LR schedulers, apex, etc...
         #trainer.fit(model, ckpt_path="some/path/to/my_checkpoint.ckpt")
         #https://pytorch-lightning.readthedocs.io/en/1.6.5/common/checkpointing.html
-        model = LightningAssociator.load_from_checkpoint(
+        model = model_class.load_from_checkpoint(
                                     checkpoint_path, 
                                     loss_params=loss_params,
                                     include_bce=include_bce,

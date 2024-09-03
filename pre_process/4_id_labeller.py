@@ -302,6 +302,10 @@ class Annotate():
     def get_files(self, year, side):
         files = []
         for filename in os.listdir(self.image_dir):
+            # anno_path = os.path.join(self.output_dir, filename.replace('.png', '.json'))
+            # if not os.path.exists(anno_path):
+            #     continue
+
             if year is not None:
                 if not filename.split('_')[0] == str(year):
                     continue        
