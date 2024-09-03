@@ -2,6 +2,7 @@ import os
 import numpy as np
 import torch
 from torch.utils.data import Dataset
+from scipy.spatial.transform import Rotation
 
 # TODO do I want this?
 # for point cloud
@@ -52,16 +53,16 @@ class PhenoDataset(Dataset):
         full_points = data[:, 0:3]
         labels = data[:, 3].astype(int)
 
-        #TODO implement this 
         if self.augment and (np.random.uniform() < self.augment.rotate_pct):
-            raise NotImplementedError()
+            rotation = Rotation.random().as_matrix()
         else:
             rotation = np.eye(3)
 
-        #TODO implement this
         if should_flip:
-            pass
-            #raise NotImplementedError()
+            flip_axis = np.random.randint(0, 3)
+            one_array = np.array([1.0, 1.0, 1.0])
+            one_array[flip_axis] = -1
+            rotation = np.diag(one_array) @ rotation
         else:
             pass
 
