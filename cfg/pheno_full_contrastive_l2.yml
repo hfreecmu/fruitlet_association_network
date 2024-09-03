@@ -22,7 +22,7 @@ max_comps: &max_comps 42
 
 # checkpoint metrics
 checkpoint_metrics:
-    metric_type: 'val_loss'
+    metric_type: 'f1'
     is_min: True
 
 model_params:
@@ -43,14 +43,14 @@ model_params:
   trans_encoder_args:
     nhead: 8
     dim_feedforward: 2048
-    dropout: 0.0
+    dropout: 0.1
     normalize_before: True
     num_layers: 4
 
 train_params:
   num_epochs: 200
   lr: 1e-4
-  weight_decay: null #1e-5
+  weight_decay: null # 1e-5
 
   #scheduler: null
   scheduler:
@@ -62,12 +62,10 @@ train_params:
     # warmup_epochs: 2
     # max_epochs: 40
 
-  # augment: 
-  #   rotate_pct: 0.0
-  #   drop_cloud_pct: 0.9
-  #   drop_pct: 0.4
-
-  augment: null
+  augment: 
+    rotate_pct: 0.0
+    drop_cloud_pct: 0.9
+    drop_pct: 0.4
 
   anno_root: *anno_root
   pheno_type: *pheno_type
@@ -84,7 +82,7 @@ val_params:
 
   anno_root: *anno_root
   pheno_type: *pheno_type
-  anno_subdir: 'test'
+  anno_subdir: 'val'
 
   encoder_type: *vis_encoder_type
 
@@ -97,7 +95,7 @@ test_params:
 
   anno_root: *anno_root
   pheno_type: *pheno_type
-  anno_subdir: 'val'
+  anno_subdir: 'test'
 
   encoder_type: *vis_encoder_type
 
