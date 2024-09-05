@@ -38,12 +38,12 @@ def create_point_cloud(cloud_path, points, colors, normals=None, estimate_normal
         cloud
     )
 
-pointcloud_dir = 'labelling/point_clouds'
-annotations_dir = 'labelling/id_annotations'
-image_dir = 'labelling/selected_images/images'
-det_dir = 'labelling/detections'
-output_dir = 'labelling/vis_points_clouds_filtered'
-anno_output_dir = 'labelling/id_annotations_filtered'
+pointcloud_dir = '/home/frc-ag-3/harry_ws/fruitlet_2023/labelling/inhand/tro_final/point_clouds'
+annotations_dir = '/home/frc-ag-3/harry_ws/fruitlet_2023/labelling/inhand/tro_final/id_annotations'
+image_dir = '/home/frc-ag-3/harry_ws/fruitlet_2023/labelling/inhand/tro_final/selected_images/images'
+det_dir = '/home/frc-ag-3/harry_ws/fruitlet_2023/labelling/inhand/tro_final/detections'
+output_dir = '/home/frc-ag-3/harry_ws/fruitlet_2023/labelling/inhand/tro_final/vis_point_clouds_filtered'
+anno_output_dir = '/home/frc-ag-3/harry_ws/fruitlet_2023/labelling/inhand/tro_final/id_annotations_filtered'
 
 full_pos = []
 for filename in os.listdir(annotations_dir):
@@ -120,24 +120,33 @@ for filename in os.listdir(annotations_dir):
 
     if len(orig_cloud) == 0:
         # happens when flagged and I did not labbel
+        # actually if I filter then not this could happen
         assert full_annotations['flagged'] == True
         continue
 
     anno_output_path = os.path.join(anno_output_dir, filename)
     write_json(anno_output_path, full_annotations)
 
+    orig_cloud_back = orig_cloud
     orig_cloud = np.concatenate(orig_cloud)
     orig_colors = np.concatenate(orig_colors)
+
+    if orig_cloud.shape[0] == 0:
+        # happens when no points originally in cloud
+        # TODO not sure why? look into
+        continue
+
     vis_path = os.path.join(output_dir, filename.replace('.json', '_orig.pcd'))
 
     create_point_cloud(vis_path, orig_cloud, orig_colors)
 
+    if len(cluster_cloud) == 0:
+        # happens when all filtered out
+        continue
+
     cluster_cloud_backup = cluster_cloud
     cluster_cloud = np.concatenate(cluster_cloud)
     cluster_colors = np.concatenate(cluster_colors)
-
-    if cluster_cloud.shape[0] == 0:
-        raise RuntimeError('should not happen?')
     
     mean_vals = cluster_cloud.mean(axis=0)
     for det_ind in range(len(tracked_dets)):
