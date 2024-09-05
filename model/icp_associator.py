@@ -5,25 +5,7 @@ from scipy.optimize import linear_sum_assignment
 from scipy.spatial.distance import cdist
 import lightning as L
 
-def unravel_clouds(clouds, cloud_inds, fruitlet_ids):
-    fruitlet_clouds = []
-    centroids = []
-    has_points = []
-    for fruitlet_id in fruitlet_ids:
-        cloud_points = clouds[cloud_inds == fruitlet_id]
-        if cloud_points.shape[0] == 0:
-            has_points.append(False)
-        else:
-            has_points.append(True)
-
-        fruitlet_clouds.append(cloud_points)
-
-        centroids.append(cloud_points.mean(axis=0).numpy())
-    
-    centroids = np.array(centroids)
-    has_points = np.array(has_points)
-    
-    return fruitlet_clouds, centroids, has_points
+from util.util import unravel_clouds
 
 class ICPAssociator(L.LightningModule):
     def __init__(self,
@@ -99,7 +81,7 @@ class ICPAssociator(L.LightningModule):
                fruitlet_ids_0, \
                file_key_1, clouds_1, cloud_inds_1, \
                fruitlet_ids_1, \
-               matches_gt = batch
+               matches_gt, _, _ = batch
         
         if not clouds_0.shape[0] == 1:
             raise RuntimeError('only batch size 1 supported icp_assoc')

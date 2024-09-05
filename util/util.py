@@ -4,6 +4,7 @@ import pickle
 from omegaconf import OmegaConf
 import cv2
 import numpy as np
+import open3d
 
 def read_json(path):
     with open(path) as f:
@@ -20,6 +21,11 @@ def write_json(path, data, pretty=False):
 def read_pickle(path):
     with open(path, "rb") as f:
         return pickle.load(f)
+    
+def read_point_cloud(path):
+    cloud = open3d.io.read_point_cloud(path)
+    points = np.array(cloud.points)
+    return points
 
 def load_cfg(cfg_path):
     cfg = OmegaConf.load(cfg_path)
@@ -70,6 +76,26 @@ def get_checkpoint_path(checkpoint_dir, exp_name, checkpoint_metrics):
     
     checkpoint_path = os.path.join(checkpoint_dir, best_filename)
     return checkpoint_path
+
+def unravel_clouds(clouds, cloud_inds, fruitlet_ids):
+    fruitlet_clouds = []
+    centroids = []
+    has_points = []
+    for fruitlet_id in fruitlet_ids:
+        cloud_points = clouds[cloud_inds == fruitlet_id]
+        if cloud_points.shape[0] == 0:
+            has_points.append(False)
+        else:
+            has_points.append(True)
+
+        fruitlet_clouds.append(cloud_points)
+
+        centroids.append(cloud_points.mean(axis=0).numpy())
+    
+    centroids = np.array(centroids)
+    has_points = np.array(has_points)
+    
+    return fruitlet_clouds, centroids, has_points
 
 def vis_matches(matches, gt_matches, 
                 im_path_0, anno_path_0, det_inds_0, 

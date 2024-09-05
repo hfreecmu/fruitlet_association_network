@@ -6,11 +6,13 @@ is_pheno: False
 
 ### change these two running bridges vs local
 # images and batch size
-images_dir: &images_dir '/ocean/projects/agr240003p/hfreeman/t_ro/labels/selected_images/images'
-#images_dir: &images_dir 'labelling/selected_images/images'
+#images_dir: &images_dir '/ocean/projects/agr240003p/hfreeman/t_ro/labels/selected_images/images'
+images_dir: &images_dir 'labelling/selected_images/images'
 #batch_size: &batch_size 32
 batch_size: &batch_size 32
 ###
+
+full_cloud_dir: &full_cloud_dir 'labelling/full_point_clouds'
 
 # data and logging
 anno_root: &anno_root 'datasets'
@@ -107,3 +109,5 @@ test_params:
   max_fruitlets: *max_fruitlets
 
   is_test: True
+
+  full_cloud_dir: *full_cloud_dir

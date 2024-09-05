@@ -12,6 +12,8 @@ images_dir: &images_dir 'labelling/selected_images/images'
 batch_size: &batch_size 32
 ###
 
+full_cloud_dir: &full_cloud_dir 'labelling/full_point_clouds'
+
 # data and logging
 anno_root: &anno_root 'datasets'
 checkpoint_dir: 'lightning_logs'
@@ -108,3 +110,5 @@ test_params:
   max_fruitlets: *max_fruitlets
 
   is_test: True
+
+  full_cloud_dir: *full_cloud_dir

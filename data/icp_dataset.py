@@ -20,7 +20,12 @@ class ICPAssociationDataset(DatasetInterface):
         return len(self.file_data)
     
     def load_data(self, annotations_path):
-        annotations = read_json(annotations_path)['annotations']
+        full_anno = read_json(annotations_path)
+        annotations = full_anno['annotations']
+        if 'mean_vals' in full_anno:
+            mean_vals = np.array(full_anno['mean_vals'])
+        else:
+            mean_vals = np.array([0, 0, 0])
 
         clouds = []
         cloud_inds = []
@@ -43,20 +48,19 @@ class ICPAssociationDataset(DatasetInterface):
         cloud_inds = np.concatenate(cloud_inds)
         fruitlet_ids = np.array(fruitlet_ids)
 
-        return clouds, cloud_inds, fruitlet_ids
+        return clouds, cloud_inds, fruitlet_ids, mean_vals
     
     def _get_data(self, entry):
         file_key, annotations_path, _ = entry
-        clouds, cloud_inds, fruitlet_ids = self.load_data(annotations_path)
+        clouds, cloud_inds, fruitlet_ids, mean_vals = self.load_data(annotations_path)
 
-        return file_key, clouds, cloud_inds, fruitlet_ids
+        return file_key, clouds, cloud_inds, fruitlet_ids, mean_vals
     
     def __getitem__(self, index):
         entry_0, entry_1 = self.file_data[index]
 
-        file_key_0, clouds_0, cloud_inds_0, fruitlet_ids_0 = self._get_data(entry_0)
-        file_key_1, clouds_1, cloud_inds_1, fruitlet_ids_1 = self._get_data(entry_1)
-
+        file_key_0, clouds_0, cloud_inds_0, fruitlet_ids_0, mean_vals_0 = self._get_data(entry_0)
+        file_key_1, clouds_1, cloud_inds_1, fruitlet_ids_1, mean_vals_1 = self._get_data(entry_1)
 
         num_0 = fruitlet_ids_0.shape[0]
         num_1 = fruitlet_ids_1.shape[0]
@@ -78,5 +82,5 @@ class ICPAssociationDataset(DatasetInterface):
                fruitlet_ids_0, \
                file_key_1, clouds_1, cloud_inds_1, \
                fruitlet_ids_1, \
-               matches_gt
+               matches_gt, mean_vals_0, mean_vals_1
     

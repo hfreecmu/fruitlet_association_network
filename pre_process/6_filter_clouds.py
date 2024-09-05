@@ -149,6 +149,7 @@ for filename in os.listdir(annotations_dir):
 
     # I do want to do this
     anno_output_path = os.path.join(anno_output_dir, filename)
+    full_annotations['mean_vals'] = mean_vals.tolist()
     write_json(anno_output_path, full_annotations)
 
     vis_path = os.path.join(output_dir, filename.replace('.json', '.pcd'))
