@@ -4,9 +4,7 @@ import torch.nn.functional as F
 
 from model.transformer.blocks_double import TransformerEncoderLayer, TransformerEncoder, MLP
 from model.positional_encoder.cloud_encoder import Fixed3DPositionalEncoder
-from model.positional_encoder.rotary_encoder import Rotary3DPositionalEncoder
 from model.positional_encoder.pheno_encoder import PhenoFixed3DPositionalEncoder
-from model.positional_encoder.pheno_rotary_encoder import PhenoRotary3DPositionalEncoder
 from model.positional_encoder.position_encoding import build_position_encoding
 from model.positional_encoder.zero_encoder import ZeroEncoder
 from model.model_util import get_vis_encoder
@@ -35,17 +33,12 @@ class FruitletAssociator(nn.Module):
         if 'zero' in pos_encoder_args['pos_encoder_type']:
             self.pos_encoder_2d = ZeroEncoder(d_model)
         else:
-            #change this and below for rotary
-            self.pos_encoder_2d = build_position_encoding(d_model, use_rot=True)
+            self.pos_encoder_2d = build_position_encoding(d_model, use_rot=False)
 
         if not is_pheno:
-            #change this and above for rotary
-            # self.pos_encoder_3d = Fixed3DPositionalEncoder(**pos_encoder_args)
-            self.pos_encoder_3d = Rotary3DPositionalEncoder(**pos_encoder_args)
+            self.pos_encoder_3d = Fixed3DPositionalEncoder(**pos_encoder_args)
         else:
-            #change this and above for rotary
-            # self.pos_encoder_3d = PhenoFixed3DPositionalEncoder(**pos_encoder_args)
-            self.pos_encoder_3d = PhenoRotary3DPositionalEncoder(**pos_encoder_args)
+            self.pos_encoder_3d = PhenoFixed3DPositionalEncoder(**pos_encoder_args)
 
         self.d_model = d_model
         self.scale = d_model**0.5
@@ -72,13 +65,22 @@ class FruitletAssociator(nn.Module):
         ims_0, cloud_0, is_pad_0, pos_2ds_0 = data_0
         ims_1, cloud_1, is_pad_1, pos_2ds_1 = data_1
 
-        num_batches, fruitlets_per_batch, _, im_height, im_width = ims_0.shape
+        num_batches, fruitlets_per_batch = ims_0.shape[0:2]
         full_batch_size = num_batches*fruitlets_per_batch
 
-        comb_ims = torch.vstack([
-            ims_0.view(full_batch_size, 4, im_height, im_width),
-            ims_1.view(full_batch_size, 4, im_height, im_width)
-        ])
+        if not 'pheno' in self.encoder_type:
+            _, _, _, im_height, im_width = ims_0.shape
+            
+
+            comb_ims = torch.vstack([
+                ims_0.view(full_batch_size, 4, im_height, im_width),
+                ims_1.view(full_batch_size, 4, im_height, im_width)
+            ])
+        else:
+            comb_ims = torch.vstack([
+                ims_0.view(full_batch_size, -1),
+                ims_1.view(full_batch_size, -1)
+            ])
 
         vis_enc = self.vis_encoder(comb_ims)
 

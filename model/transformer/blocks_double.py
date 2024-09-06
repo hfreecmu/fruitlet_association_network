@@ -133,10 +133,10 @@ class TransformerEncoderLayer(nn.Module):
         # cross attention
         # src_0 is query
         # src_1 is key and value
-        cross_entries_0 = (src_0, src_1, src_mask_1, src_key_padding_mask_1, pos_0, pos_1)
+        cross_entries_0 = (src_0, src_1, src_mask_1, src_key_padding_mask_1, None, None)
         # src_1 is query
         # src_0 is key and value
-        cross_entries_1 = (src_1, src_0, src_mask_0, src_key_padding_mask_0, pos_1, pos_0)
+        cross_entries_1 = (src_1, src_0, src_mask_0, src_key_padding_mask_0, None, None)
 
         src_res = []
         for cross_entry in [cross_entries_0, cross_entries_1]:
@@ -193,10 +193,10 @@ class TransformerEncoderLayer(nn.Module):
         # cross attention
         # src_0 is query
         # src_1 is key and value
-        cross_entries_0 = (src_0, src_1, src_mask_1, src_key_padding_mask_1, pos_0, pos_1)
+        cross_entries_0 = (src_0, src_1, src_mask_1, src_key_padding_mask_1, None, None)
         # src_1 is query
         # src_0 is key and value
-        cross_entries_1 = (src_1, src_0, src_mask_0, src_key_padding_mask_0, pos_1, pos_0)
+        cross_entries_1 = (src_1, src_0, src_mask_0, src_key_padding_mask_0, None, None)
 
         src_res = []
         for cross_entry in [cross_entries_0, cross_entries_1]:

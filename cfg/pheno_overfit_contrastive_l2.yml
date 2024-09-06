@@ -1,6 +1,7 @@
 ### Params to change between exps:
 exp_name: 'pheno_overfit'
 loss_path: 'cfg/loss/loss_contrastive_l2.yml'
+# loss_path: 'cfg/loss/loss_matching.yml'
 is_pheno: True
 ###
 
@@ -14,11 +15,12 @@ batch_size: &batch_size 32
 anno_root: &anno_root 'datasets/pheno'
 pheno_type: &pheno_type 'tomato'
 checkpoint_dir: 'lightning_logs'
-vis_encoder_type: &vis_encoder_type 'zero'
+vis_encoder_type: &vis_encoder_type 'pheno'
 pos_encoder_type: &pos_encoder_type 'zero'
 
 # dataset confg
 max_comps: &max_comps 42
+day_lim: &day_lim 5
 
 # checkpoint metrics
 checkpoint_metrics:
@@ -43,20 +45,20 @@ model_params:
   trans_encoder_args:
     nhead: 8
     dim_feedforward: 2048
-    dropout: 0.0
+    dropout: 0.1
     normalize_before: True
     num_layers: 4
 
 train_params:
-  num_epochs: 200
+  num_epochs: 10000
   lr: 1e-4
   weight_decay: null #1e-5
 
   #scheduler: null
   scheduler:
     type: 'lr_step'
-    gamma: 0.90
-    train_step: 20
+    gamma: 0.95
+    train_step: 100
 
     # type: 'warmup_cosine'
     # warmup_epochs: 2
@@ -64,18 +66,18 @@ train_params:
 
   augment: 
     rotate_pct: 1.0
-    drop_cloud_pct: 0.9
-    drop_pct: 0.4
+    drop_pct: 1.0
 
   # augment: null
 
   anno_root: *anno_root
   pheno_type: *pheno_type
-  anno_subdir: 'mini'
+  anno_subdir: 'train'
 
   encoder_type: *vis_encoder_type
 
   max_comps: *max_comps
+  day_lim: *day_lim
 
   is_test: False
 
@@ -84,11 +86,12 @@ val_params:
 
   anno_root: *anno_root
   pheno_type: *pheno_type
-  anno_subdir: 'mini'
+  anno_subdir: 'test'
 
   encoder_type: *vis_encoder_type
 
   max_comps: *max_comps
+  day_lim: *day_lim
 
   is_test: False
 
@@ -97,10 +100,11 @@ test_params:
 
   anno_root: *anno_root
   pheno_type: *pheno_type
-  anno_subdir: 'mini'
+  anno_subdir: 'test'
 
   encoder_type: *vis_encoder_type
 
   max_comps: *max_comps
+  day_lim: *day_lim
 
   is_test: True

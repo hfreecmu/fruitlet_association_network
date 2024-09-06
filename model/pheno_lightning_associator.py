@@ -231,18 +231,15 @@ class PhenoLightningAssociator(L.LightningModule):
             self.bce_loss_fn = None
 
     def training_step(self, batch, batch_idx):
-        _, fruit_clouds_0, is_pad_0, _, \
-        _, fruit_clouds_1, is_pad_1, _, \
+        _, feature_vecs_0, pos_vecs_0, is_pad_0, _, \
+        _, feature_vecs_1, pos_vecs_1, is_pad_1, _, \
         matches_gt, masks_gt = batch
         
-        fruit_ims_0 = torch.zeros(fruit_clouds_0.shape[0], fruit_clouds_0.shape[1], 4, 1, 1, dtype=fruit_clouds_0.dtype, device=fruit_clouds_0.device)
-        fruit_ims_1 = torch.zeros(fruit_clouds_1.shape[0], fruit_clouds_1.shape[1], 4, 1, 1, device=fruit_clouds_1.device)
+        pos_2ds_0 = torch.zeros(feature_vecs_0.shape[0], feature_vecs_0.shape[1], dtype=feature_vecs_0.dtype, device=feature_vecs_0.device)
+        pos_2ds_1 = torch.clone(pos_2ds_0)
 
-        pos_2ds_0 = torch.clone(fruit_ims_0[:, :, 0])
-        pos_2ds_1 = torch.clone(fruit_ims_1[:, :, 0])
-
-        data_0 = (fruit_ims_0, fruit_clouds_0, is_pad_0, pos_2ds_0)
-        data_1 = (fruit_ims_1, fruit_clouds_1, is_pad_1, pos_2ds_1)
+        data_0 = (feature_vecs_0, pos_vecs_0, is_pad_0, pos_2ds_0)
+        data_1 = (feature_vecs_1, pos_vecs_1, is_pad_1, pos_2ds_1)
 
         enc_0, enc_1, sim, z0, z1, pred_confidences, gt_confidences = self.associator(data_0, data_1, matches_gt)
 
@@ -262,18 +259,15 @@ class PhenoLightningAssociator(L.LightningModule):
         return loss
 
     def validation_step(self, batch, batch_index):
-        _, fruit_clouds_0, is_pad_0, _, \
-        _, fruit_clouds_1, is_pad_1, _, \
+        _, feature_vecs_0, pos_vecs_0, is_pad_0, _, \
+        _, feature_vecs_1, pos_vecs_1, is_pad_1, _, \
         matches_gt, masks_gt = batch
         
-        fruit_ims_0 = torch.zeros(fruit_clouds_0.shape[0], fruit_clouds_0.shape[1], 4, 1, 1, dtype=fruit_clouds_0.dtype, device=fruit_clouds_0.device)
-        fruit_ims_1 = torch.zeros(fruit_clouds_1.shape[0], fruit_clouds_1.shape[1], 4, 1, 1, device=fruit_clouds_1.device)
+        pos_2ds_0 = torch.zeros(feature_vecs_0.shape[0], feature_vecs_0.shape[1], dtype=feature_vecs_0.dtype, device=feature_vecs_0.device)
+        pos_2ds_1 = torch.clone(pos_2ds_0)
 
-        pos_2ds_0 = torch.clone(fruit_ims_0[:, :, 0])
-        pos_2ds_1 = torch.clone(fruit_ims_1[:, :, 0])
-
-        data_0 = (fruit_ims_0, fruit_clouds_0, is_pad_0, pos_2ds_0)
-        data_1 = (fruit_ims_1, fruit_clouds_1, is_pad_1, pos_2ds_1)
+        data_0 = (feature_vecs_0, pos_vecs_0, is_pad_0, pos_2ds_0)
+        data_1 = (feature_vecs_1, pos_vecs_1, is_pad_1, pos_2ds_1)
 
         enc_0, enc_1, sim, z0, z1, pred_confidences, gt_confidences = self.associator(data_0, data_1, matches_gt)
         
