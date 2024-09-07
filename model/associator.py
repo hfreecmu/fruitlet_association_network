@@ -100,12 +100,15 @@ class FruitletAssociator(nn.Module):
         if 'zero' in self.encoder_type:
             vis_enc_0, vis_enc_1 = pos_enc_0, pos_enc_1
             pos_enc_0, pos_enc_1 = None, None
-        
+       else:
+           vis_enc_0 = vis_enc_0 + pos_enc_0
+           vis_enc_1 = vis_enc_1 + pos_enc_1
+
         enc_0, enc_1 = self.encoder(vis_enc_0, vis_enc_1,
                                     src_key_padding_mask_0=is_pad_0,
                                     src_key_padding_mask_1=is_pad_1,
-                                    pos_0=pos_enc_0,
-                                    pos_1=pos_enc_1,
+                                    pos_0=None,
+                                    pos_1=None,
                                     )
         
         # enc_0 and enc_1 are used for contrastive loss
