@@ -33,7 +33,7 @@ class FruitletAssociator(nn.Module):
         if 'zero' in pos_encoder_args['pos_encoder_type']:
             self.pos_encoder_2d = ZeroEncoder(d_model)
         else:
-            self.pos_encoder_2d = build_position_encoding(d_model, use_rot=False)
+            self.pos_encoder_2d = build_position_encoding(d_model)
 
         if not is_pheno:
             self.pos_encoder_3d = Fixed3DPositionalEncoder(**pos_encoder_args)

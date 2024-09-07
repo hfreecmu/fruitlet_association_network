@@ -55,7 +55,7 @@ def test(is_pheno,
                             accelerator="cpu")
     else:
         test_dataset = data_class(**test_params)
-        test_loader = model_class(dataset=test_dataset, 
+        test_loader = DataLoader(dataset=test_dataset, 
                                  batch_size=batch_size,
                                  shuffle=False)
         
@@ -67,7 +67,7 @@ def test(is_pheno,
     
         print('Using checkpoint: ' + checkpoint_path)
 
-        model = LightningAssociator.load_from_checkpoint(checkpoint_path,
+        model = model_class.load_from_checkpoint(checkpoint_path,
                                                          vis=test_params['vis'],
                                                          vis_dir=test_params['vis_dir'])
         
