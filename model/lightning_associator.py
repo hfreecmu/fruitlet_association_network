@@ -4,6 +4,7 @@ import lightning as L
 from pl_bolts.optimizers.lr_scheduler import LinearWarmupCosineAnnealingLR
 import torch.nn.functional as F
 from scipy.optimize import linear_sum_assignment
+import numpy as np
 
 from model.associator import FruitletAssociator
 from util.util import vis_matches
@@ -159,7 +160,23 @@ def get_loss_metrics(dists, is_pad_0, is_pad_1, matches_gt, loss_params,
         else:
             #TODO not the best because could assign twice to same one. fix.
             is_match = torch.zeros_like(matches)
-            is_match[batch_dists > loss_params['match_thresh']] = 1.0
+
+            m0, m1 = batch_dists.argmax(1), batch_dists.argmax(0)
+            max0_exp, max1_exp = batch_dists.max(1), batch_dists.max(0)
+            
+            indices0 = np.arange(m0.shape[0])
+            indices1 = np.arange(m1.shape[0])
+            mutual0 = indices0 == m1[m0]
+            mutual1 = indices1 == m0[m1]
+
+            mscores0 = np.where(mutual0, max0_exp, np.zeros_like(max0_exp))
+            #mscores1 = np.where(mutual1, mscores0[m1], np.zeros_like(max1_exp))
+            valid0 = mutual0 & (mscores0 > loss_params['match_thresh'])
+            valid1 = mutual1 & valid0[m1]
+            m0 = m0[valid0]
+            m1 = m1[valid1]
+
+            is_match[m0, m1] = 1.0
 
         if vis:
             vis_matches(is_match.cpu().numpy(), matches.cpu().numpy(), 
