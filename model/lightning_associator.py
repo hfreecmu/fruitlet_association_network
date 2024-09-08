@@ -20,8 +20,8 @@ def contrastive_loss_fn(features1, features2, gt_match, gt_mask,
     margin = loss_params['margin']
 
     # Ensure features are normalized
-    features1 = F.normalize(features1, p=2, dim=-1)
-    features2 = F.normalize(features2, p=2, dim=-1)
+    #features1 = F.normalize(features1, p=2, dim=-1)
+    #features2 = F.normalize(features2, p=2, dim=-1)
 
     if dist_type == 'l2':
         distances = torch.cdist(features1, features2)
