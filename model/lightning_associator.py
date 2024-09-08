@@ -142,6 +142,9 @@ def get_loss_metrics(dists, is_pad_0, is_pad_1, matches_gt, loss_params,
     full_true_pos = 0
     full_false_pos = 0
     full_false_neg = 0
+    inst_precs = []
+    inst_recs = []
+    inst_f1s = []
     for ind, batch_data in enumerate(zip(dists, matches_gt, padded_0s, padded_1s)):
         batch_dists, batch_matches_gt, batch_pad_0s, batch_pad_1s = batch_data
 
@@ -172,6 +175,19 @@ def get_loss_metrics(dists, is_pad_0, is_pad_1, matches_gt, loss_params,
         full_false_pos += false_pos
         full_false_neg += false_neg
 
+        if true_pos == 0:
+            inst_prec = 0
+            inst_rec = 0
+            inst_f1 = 0
+        else:
+            inst_prec = true_pos / (true_pos + false_pos)
+            inst_rec = true_pos / (true_pos + false_neg)
+            inst_f1 = 2*inst_prec*inst_rec / (inst_prec + inst_rec)
+
+        inst_precs.append(inst_prec)
+        inst_recs.append(inst_rec)
+        inst_f1s.append(inst_f1)
+
     if full_true_pos == 0:
         precision = 0
         recall = 0
@@ -181,7 +197,7 @@ def get_loss_metrics(dists, is_pad_0, is_pad_1, matches_gt, loss_params,
         recall = full_true_pos / (full_true_pos + full_false_neg)
         f1 = 2*precision*recall / (precision + recall)
 
-    return precision, recall, f1
+    return precision, recall, f1, inst_precs, inst_recs, inst_f1s
 
 def get_bce_metrics(pred_confidences, gt_confidences, matches_gt, bce_thresh):
     pred_confidences = torch.sigmoid(pred_confidences)
@@ -284,12 +300,17 @@ class LightningAssociator(L.LightningModule):
         self.log("val_loss", loss, prog_bar=True)
         self.log("val_match_loss", match_loss)
 
-        precision, recall, f1 = get_loss_metrics(dists, is_pad_0, is_pad_1,
+        precision, recall, f1, inst_precs, inst_recs, inst_f1s  = get_loss_metrics(dists, is_pad_0, is_pad_1,
                                                  matches_gt, self.loss_params)
         
         self.log('precision', precision)
         self.log('recall', recall)
-        self.log('f1', f1, prog_bar=True)
+        self.log('f1', f1)
+
+        for ip, ir, if1 in zip(inst_precs, inst_recs, inst_f1s):
+            self.log('i_prec', ip)
+            self.log('i_rec', ir)
+            self.log('i_f1', if1)
 
         if self.include_bce:
             self.log("val_bce_loss", bce_loss)
@@ -325,7 +346,7 @@ class LightningAssociator(L.LightningModule):
 
         loss = match_loss + bce_loss
 
-        precision, recall, f1 = get_loss_metrics(dists, is_pad_0, is_pad_1,
+        precision, recall, f1, inst_precs, inst_recs, inst_f1s = get_loss_metrics(dists, is_pad_0, is_pad_1,
                                                  matches_gt, self.loss_params,
                                                  self.vis, 
                                                  im_paths_0, anno_paths_0, det_inds_0, 
@@ -335,6 +356,11 @@ class LightningAssociator(L.LightningModule):
         self.log('precision', precision)
         self.log('recall', recall)
         self.log('f1', f1)
+
+        for ip, ir, if1 in zip(inst_precs, inst_recs, inst_f1s):
+            self.log('i_prec', ip)
+            self.log('i_rec', ir)
+            self.log('i_f1', if1)
 
         if self.include_bce:
             bce_precision, bce_recall, bce_f1 = get_bce_metrics(pred_confidences, gt_confidences,
