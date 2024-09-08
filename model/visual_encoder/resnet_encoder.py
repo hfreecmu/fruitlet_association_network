@@ -32,9 +32,8 @@ class ResNetEncoder(nn.Module):
         self.model[0] = nn.Conv2d(4, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
 
         output_size = 512*(image_size//32)**2
-        #self.output_proj = nn.Linear(output_size, output_dim)
+        self.output_proj = nn.Linear(output_size, output_dim)
 
-        self.output_proj = MLP(output_size, output_dim, output_dim, 2)
         self.use_out_proj = MLP(output_size, output_dim, 1, 2)
 
 
