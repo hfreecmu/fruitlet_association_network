@@ -2,6 +2,8 @@ import torch.nn as nn
 import torchvision
 from torchvision.ops import FrozenBatchNorm2d
 
+from model.transformer.blocks_double import MLP
+
 class ResNetEncoder(nn.Module):
     def __init__(self, 
                  image_size, 
@@ -32,8 +34,15 @@ class ResNetEncoder(nn.Module):
         output_size = 512*(image_size//32)**2
         self.output_proj = nn.Linear(output_size, output_dim)
 
+        self.use_out_proj = MLP(output_size, output_dim, 1, 2)
+
+
     def forward(self, x):
         x = self.model(x)
         x = x.reshape(x.shape[0], -1)
-        x = self.output_proj(x)
+        #x = self.output_proj(x)
+
+        use_proj = nn.functional.sigmoid(self.use_out_proj(x))
+        x = self.output_proj(x) * use_proj
+
         return x
