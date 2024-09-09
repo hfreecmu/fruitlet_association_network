@@ -54,7 +54,7 @@ def contrastive_loss_fn(features1, features2, gt_match, gt_mask,
     
     return loss.mean(), distances
     
-def match_loss_fn(sim, z0, z1, gt_match, is_pad_0, is_pad_1):
+def match_loss_fn(sim, z0, z1, gt_match, is_pad_0, is_pad_1, include_dist):
     certainties = F.logsigmoid(z0) + F.logsigmoid(z1).transpose(1, 2)
 
     # dists
@@ -78,9 +78,12 @@ def match_loss_fn(sim, z0, z1, gt_match, is_pad_0, is_pad_1):
         scores[:, -1, :-1] = F.logsigmoid(-b_z1.squeeze(-1))
 
         # dists
-        tmp = dists[ind:ind+1, ~is_pad_0[ind]]
-        tmp[:, :, ~is_pad_1[ind]] = torch.exp(scores[:, 0:-1, 0:-1])
-        dists[ind:ind+1, ~is_pad_0[ind]] = tmp
+        if include_dist:
+            tmp = dists[ind:ind+1, ~is_pad_0[ind]]
+            tmp[:, :, ~is_pad_1[ind]] = torch.exp(scores[:, 0:-1, 0:-1])
+            dists[ind:ind+1, ~is_pad_0[ind]] = tmp
+        else:
+            dists = None
 
         scores = scores[0]
         matches = gt_match[ind, ~is_pad_0[ind]][:, ~is_pad_1[ind]]
@@ -113,13 +116,14 @@ def match_loss_fn(sim, z0, z1, gt_match, is_pad_0, is_pad_1):
 def get_loss(loss_params, features_0, features_1, 
              sim, z0, z1, is_pad_0, is_pad_1,
              matches_gt, masks_gt,
-             pred_confidences, gt_confidences, include_bce, bce_loss_fn):
+             pred_confidences, gt_confidences, include_bce, bce_loss_fn,
+             include_dist=True):
     
     if 'contrastive' in loss_params['loss_type']:
         match_loss, dists = contrastive_loss_fn(features_0, features_1, matches_gt, masks_gt, 
                                                 loss_params)
     elif loss_params['loss_type'] == 'matching':
-        match_loss, dists = match_loss_fn(sim, z0, z1, matches_gt, is_pad_0, is_pad_1)
+        match_loss, dists = match_loss_fn(sim, z0, z1, matches_gt, is_pad_0, is_pad_1, include_dist)
     else:
         raise RuntimeError('Invalid loss type: ' + loss_params['loss_type'])
     
@@ -282,7 +286,7 @@ class LightningAssociator(L.LightningModule):
                                            sim, z0, z1, is_pad_0, is_pad_1,
                                            matches_gt, masks_gt,
                                            pred_confidences, gt_confidences, 
-                                           self.include_bce, self.bce_loss_fn)
+                                           self.include_bce, self.bce_loss_fn, include_dist=False)
 
         loss = match_loss + bce_loss
         self.log("train_loss", loss, prog_bar=True)
