@@ -53,12 +53,38 @@ def contrastive_loss_fn(features1, features2, gt_match, gt_mask,
     loss = pos_loss + neg_loss
     
     return loss.mean(), distances
+
+def n_pair_loss_fn(features1, features2, gt_match, gt_mask, loss_params):
+    distances = torch.where(gt_mask > 0.0, torch.cdist(features1, features2), (1-gt_mask)*torch.inf)
+    sim = -distances
+    
+    match_inds = torch.argwhere(gt_match == 1.0)
+    if match_inds.shape[0] == 0:
+        raise RuntimeError('this should not happen')
+    
+    pos = sim[match_inds[:, 0], match_inds[:, 1], match_inds[:, 2]]
+    neg_row = sim[match_inds[:, 0], match_inds[:, 1]]
+    neg_col = sim[match_inds[:, 0], :, match_inds[:, 2]]
+
+    neg_row[torch.arange(neg_row.shape[0]), match_inds[:, 2]] = -torch.inf
+    neg_col[torch.arange(neg_col.shape[0]), match_inds[:, 1]] = -torch.inf
+
+    soft_batch = torch.concatenate((pos[:, None], neg_row, neg_col), dim=-1)
+
+    log_softmax = F.log_softmax(soft_batch, 1)
+
+    loss = -log_softmax[:, 0].mean()
+
+    return loss, distances
     
 def match_loss_fn(sim, z0, z1, gt_match, is_pad_0, is_pad_1, include_dist):
     certainties = F.logsigmoid(z0) + F.logsigmoid(z1).transpose(1, 2)
 
     # dists
-    dists = torch.zeros_like(sim)
+    if include_dist:
+        dists = torch.zeros_like(sim)
+    else:
+        dists = None
 
     losses = []
     for ind in range(sim.shape[0]):
@@ -124,6 +150,9 @@ def get_loss(loss_params, features_0, features_1,
                                                 loss_params)
     elif loss_params['loss_type'] == 'matching':
         match_loss, dists = match_loss_fn(sim, z0, z1, matches_gt, is_pad_0, is_pad_1, include_dist)
+    elif loss_params['loss_type'] == 'n_pair':
+        match_loss, dists = n_pair_loss_fn(features_0, features_1, matches_gt, masks_gt, 
+                                           loss_params)
     else:
         raise RuntimeError('Invalid loss type: ' + loss_params['loss_type'])
     

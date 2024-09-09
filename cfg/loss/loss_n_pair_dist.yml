@@ -1,0 +1,4 @@
+loss_type: 'n_pair'
+match_thresh: 0.1
+use_linear_sum: True
+bce_thresh: 0.6

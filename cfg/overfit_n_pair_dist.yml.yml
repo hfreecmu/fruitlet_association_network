@@ -1,6 +1,6 @@
 ### Params to change between exps:
-exp_name: 'contrastive_l2_overfit_debug'
-loss_path: 'cfg/loss/loss_contrastive_l2.yml'
+exp_name: 'n_pair_debug'
+loss_path: 'cfg/loss/loss_n_pair_dist.yml'
 is_pheno: False
 ###
 

@@ -132,6 +132,8 @@ class FruitletAssociator(nn.Module):
 
         if not self.include_bce:
              return enc_0, enc_1, sim, z0, z1, [], []
+        
+        raise RuntimeError('bce not supported right now')
 
         # thse are used for bce_loss. behaviour depends if contrastive or matching
         if self.loss_params['loss_type'] == 'matching':
