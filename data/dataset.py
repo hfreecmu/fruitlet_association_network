@@ -62,11 +62,12 @@ class AssociationDataset(DatasetInterface):
                  augment,
                  max_fruitlets,
                  is_test,
+                 cross_day=False,
                  **kwargs
                  ):
         
         super().__init__(anno_root, anno_subdir, images_dir,
-                         is_test)
+                         cross_day, is_test)
 
         self.max_fruitlets = max_fruitlets
         self.augment = augment

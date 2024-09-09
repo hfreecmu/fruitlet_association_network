@@ -120,8 +120,6 @@ class TransformerEncoderLayer(nn.Module):
             src = src + self.dropout1(src2)
             src = self.norm1(src)
 
-            # TODO do I do thse here? no because I do them later right? I am unsure
-            # actually maybe because we pos embed both?
             src2 = self.linear2(self.dropout_x0(self.activation(self.linear1(src))))
             src = src + self.dropout2(src2)
             src = self.norm2(src)
@@ -181,7 +179,6 @@ class TransformerEncoderLayer(nn.Module):
                                   key_padding_mask=src_key_padding_mask)[0]
             src = src + self.dropout1(src2)
 
-            # TODO maybe we should? Do we do this?
             src2 = self.norm2(src)
             src2 = self.linear2(self.dropout_x0(self.activation(self.linear1(src2))))
             src = src + self.dropout2(src2)

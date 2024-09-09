@@ -90,6 +90,7 @@ def parse_args():
     parser.add_argument('--include_bce', action='store_true')
     parser.add_argument('--use_icp', action='store_true')
     parser.add_argument('--use_bonn', action='store_true')
+    parser.add_argument('--cross_day', action='store_true')
     parser.add_argument('--vis', action='store_true')
     parser.add_argument('--vis_dir', default=None)
 
@@ -102,6 +103,7 @@ if __name__ == "__main__":
     include_bce = args.include_bce
     use_icp = args.use_icp
     use_bonn = args.use_bonn
+    cross_day = args.cross_day
     vis = args.vis
     vis_dir = args.vis_dir
 
@@ -109,6 +111,7 @@ if __name__ == "__main__":
     cfg['include_bce'] = include_bce
     cfg['test_params']['use_icp'] = use_icp
     cfg['test_params']['use_bonn'] = use_bonn
+    cfg['test_params']['cross_day'] = cross_day
     cfg['test_params']['vis'] = vis
     cfg['test_params']['vis_dir'] = vis_dir
 

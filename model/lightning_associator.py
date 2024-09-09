@@ -158,11 +158,10 @@ def get_loss_metrics(dists, is_pad_0, is_pad_1, matches_gt, loss_params,
             is_match[row_inds, col_inds] = 1.0
             is_match[batch_dists > loss_params['match_thresh']] = 0.0
         else:
-            #TODO not the best because could assign twice to same one. fix.
             is_match = torch.zeros_like(matches)
 
             m0, m1 = batch_dists.argmax(1), batch_dists.argmax(0)
-            max0_exp, max1_exp = batch_dists.max(1), batch_dists.max(0)
+            max0_exp, _ = batch_dists.max(1), batch_dists.max(0)
             
             indices0 = np.arange(m0.shape[0])
             indices1 = np.arange(m1.shape[0])

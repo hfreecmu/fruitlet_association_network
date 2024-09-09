@@ -18,8 +18,8 @@ full_cloud_dir: &full_cloud_dir 'labelling/full_point_clouds'
 anno_root: &anno_root 'datasets'
 checkpoint_dir: 'lightning_logs'
 image_size: &image_size 128
-vis_encoder_type: &vis_encoder_type 'resnet-18'
-#vis_encoder_type: &vis_encoder_type 'zero'
+#vis_encoder_type: &vis_encoder_type 'resnet-18'
+vis_encoder_type: &vis_encoder_type 'zero'
 pos_encoder_type: &pos_encoder_type 'harmonic'
 
 # dataset confg

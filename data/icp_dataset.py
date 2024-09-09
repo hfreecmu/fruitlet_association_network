@@ -9,12 +9,13 @@ class ICPAssociationDataset(DatasetInterface):
                  anno_root,
                  anno_subdir,
                  images_dir,
+                 cross_day,
                  is_test,
                  **kwargs
                  ):
         
         super().__init__(anno_root, anno_subdir, images_dir,
-                         is_test)
+                         cross_day, is_test)
 
     def __len__(self):
         return len(self.file_data)

@@ -6,6 +6,13 @@ import cv2
 import numpy as np
 import open3d
 
+CROSS_DAY_DICT = {
+    '2021-05-21': 'START',
+    '2021-05-25': 'END',
+    '2022-05-22': 'START',
+    '2022-05-26': 'END'
+}
+
 def read_json(path):
     with open(path) as f:
         data = json.load(f)
