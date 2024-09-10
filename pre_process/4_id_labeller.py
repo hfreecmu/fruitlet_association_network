@@ -306,17 +306,14 @@ class Annotate():
             # if not os.path.exists(anno_path):
             #     continue
 
+            if not '2022_375_' in filename:
+                continue
+
             if year is not None:
                 if not filename.split('_')[0] == str(year):
                     continue        
 
-                if year == 2023:
-                    id = int(filename.split('_')[1])
-                    if id < 40:
-                        continue  
-
-                # if year == 2021:
-                #     id = int(filename.split('_')[1])
+                
                         
 
             if side is not None:
@@ -330,7 +327,7 @@ class Annotate():
 image_dir = 'labelling/selected_images/images'
 detections_dir = 'labelling/detections'
 output_dir = 'labelling/id_annotations'
-year = 2021
+year = None
 side = 'left'
 
 if __name__ == "__main__":

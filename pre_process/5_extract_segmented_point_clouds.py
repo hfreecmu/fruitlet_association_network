@@ -10,8 +10,8 @@ import distinctipy
 import open3d
 
 import sys
-sys.path.append('/home/frc-ag-3/harry_ws/fruitlet/repos/RAFT-Stereo')
-sys.path.append('/home/frc-ag-3/harry_ws/fruitlet/repos/RAFT-Stereo/core')
+sys.path.append('/home/hfreeman/harry_ws/repos/RAFT-Stereo')
+sys.path.append('/home/hfreeman/harry_ws/repos/RAFT-Stereo/core')
 
 from raft_stereo import RAFTStereo
 from utils.utils import InputPadder
@@ -236,26 +236,26 @@ def create_point_cloud(cloud_path, points, colors, normals=None, estimate_normal
         cloud
     )
 
-BACKWARDS_MAPPING_PATH = '/home/frc-ag-3/harry_ws/fruitlet_2023/labelling/inhand/tro_final/selected_images/backward_mappings.json'
+BACKWARDS_MAPPING_PATH = 'labelling/selected_images/backward_mappings.json'
 
-anno_dir = '/home/frc-ag-3/harry_ws/fruitlet_2023/labelling/inhand/tro_final/id_annotations'
-detections_dir = '/home/frc-ag-3/harry_ws/fruitlet_2023/labelling/inhand/tro_final/detections'
-image_dir = '/home/frc-ag-3/harry_ws/fruitlet_2023/labelling/inhand/tro_final/selected_images/images'
-raft_middleburry_path = '/home/frc-ag-3/harry_ws/viewpoint_planning/segment_exp/src/fruitlet_disparity/models/raftstereo-middlebury.pth'
+anno_dir = 'labelling/id_annotations'
+detections_dir = 'labelling/detections'
+image_dir = 'labelling/selected_images/images'
+raft_middleburry_path = 'trained_models/raftstereo-middlebury.pth'
 camera_info_dir = 'camera_info'
-disparity_dir = '/home/frc-ag-3/harry_ws/fruitlet_2023/labelling/inhand/tro_final/disparity'
-output_dir = '/home/frc-ag-3/harry_ws/fruitlet_2023/labelling/inhand/tro_final/point_clouds'
-full_cloud_dir = '/home/frc-ag-3/harry_ws/fruitlet_2023/labelling/inhand/tro_final/full_point_clouds'
+disparity_dir = 'labelling/disparity'
+output_dir = 'labelling/point_clouds'
+full_cloud_dir = 'labelling/full_point_clouds'
 device = 'cuda'
 
 vis = True
 num_vis = 20
-vis_dir = '/home/frc-ag-3/harry_ws/fruitlet_2023/labelling/inhand/tro_final/vis_point_clouds'
+vis_dir = 'labelling/vis_point_clouds'
 
 if __name__ == "__main__":
 
-    #raft_args = get_middle_model_args(raft_middleburry_path)
-    #raft_model = load_raft_model(raft_args, device)
+    raft_args = get_middle_model_args(raft_middleburry_path)
+    raft_model = load_raft_model(raft_args, device)
 
     for filename in os.listdir(anno_dir):
         if not filename.endswith('.json'):

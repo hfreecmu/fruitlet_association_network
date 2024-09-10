@@ -38,12 +38,12 @@ def create_point_cloud(cloud_path, points, colors, normals=None, estimate_normal
         cloud
     )
 
-pointcloud_dir = '/home/frc-ag-3/harry_ws/fruitlet_2023/labelling/inhand/tro_final/point_clouds'
-annotations_dir = '/home/frc-ag-3/harry_ws/fruitlet_2023/labelling/inhand/tro_final/id_annotations'
-image_dir = '/home/frc-ag-3/harry_ws/fruitlet_2023/labelling/inhand/tro_final/selected_images/images'
-det_dir = '/home/frc-ag-3/harry_ws/fruitlet_2023/labelling/inhand/tro_final/detections'
-output_dir = '/home/frc-ag-3/harry_ws/fruitlet_2023/labelling/inhand/tro_final/vis_point_clouds_filtered'
-anno_output_dir = '/home/frc-ag-3/harry_ws/fruitlet_2023/labelling/inhand/tro_final/id_annotations_filtered'
+pointcloud_dir = 'labelling/point_clouds'
+annotations_dir = 'labelling/id_annotations'
+image_dir = 'labelling/selected_images/images'
+det_dir = 'labelling/detections'
+output_dir = 'labelling/vis_point_clouds_filtered'
+anno_output_dir = 'labelling/id_annotations_filtered'
 
 full_pos = []
 for filename in os.listdir(annotations_dir):
@@ -121,7 +121,8 @@ for filename in os.listdir(annotations_dir):
     if len(orig_cloud) == 0:
         # happens when flagged and I did not labbel
         # actually if I filter then not this could happen
-        assert full_annotations['flagged'] == True
+        #assert full_annotations['flagged'] == True
+        print('um...', filename)
         continue
 
     anno_output_path = os.path.join(anno_output_dir, filename)
