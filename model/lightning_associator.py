@@ -246,6 +246,10 @@ def get_loss_metrics(dists, is_pad_0, is_pad_1, matches_gt, loss_params,
         recall = full_true_pos / (full_true_pos + full_false_neg)
         f1 = 2*precision*recall / (precision + recall)
 
+    inst_precs = torch.as_tensor(inst_precs, dtype=matches_gt.dtype, device=matches_gt.device)
+    inst_recs = torch.as_tensor(inst_recs, dtype=matches_gt.dtype, device=matches_gt.device)
+    inst_f1s = torch.as_tensor(inst_f1s, dtype=matches_gt.dtype, device=matches_gt.device)
+
     return precision, recall, f1, inst_precs, inst_recs, inst_f1s
 
 def get_bce_metrics(pred_confidences, gt_confidences, matches_gt, bce_thresh):
@@ -298,6 +302,10 @@ class LightningAssociator(L.LightningModule):
 
         self.vis = vis
         self.vis_dir = vis_dir
+
+        self.validation_prec_outputs = []
+        self.validation_rec_outputs = []
+        self.validation_f1_outputs = []
 
     def training_step(self, batch, batch_idx):
         _, fruitlet_ims_0, fruitlet_clouds_0, \
@@ -356,11 +364,6 @@ class LightningAssociator(L.LightningModule):
         self.log('recall', recall)
         self.log('f1', f1)
 
-        for ip, ir, if1 in zip(inst_precs, inst_recs, inst_f1s):
-            self.log('i_prec', ip)
-            self.log('i_rec', ir)
-            self.log('i_f1', if1)
-
         if self.include_bce:
             self.log("val_bce_loss", bce_loss)
 
@@ -371,7 +374,19 @@ class LightningAssociator(L.LightningModule):
             self.log('bce_recall', bce_recall)
             self.log('bce_f1', bce_f1, prog_bar=True)
         
-        return loss
+        if len(self.validation_prec_outputs) == 0:
+            self.validation_prec_outputs = inst_precs
+            self.validation_rec_outputs = inst_recs
+            self.validation_f1_outputs = inst_f1s
+        else:
+            self.validation_prec_outputs = torch.concatenate((self.validation_prec_outputs, inst_precs))
+            self.validation_rec_outputs = torch.concatenate((self.validation_rec_outputs, inst_recs))
+            self.validation_f1_outputs = torch.concatenate((self.validation_f1_outputs, inst_f1s))
+    
+    def on_validation_epoch_end(self):
+        self.log('inst_prec', torch.mean(self.validation_prec_outputs))
+        self.log('inst_rec', torch.mean(self.validation_rec_outputs))
+        self.log('inst_f1', torch.mean(self.validation_f1_outputs))
     
     def test_step(self, batch, batch_idx):
         _, fruitlet_ims_0, fruitlet_clouds_0, \
@@ -386,14 +401,14 @@ class LightningAssociator(L.LightningModule):
 
         enc_0, enc_1, sim, z0, z1, pred_confidences, gt_confidences = self.associator(data_0, data_1, matches_gt)
         
-        match_loss, bce_loss, dists = get_loss(self.loss_params, enc_0, enc_1, 
+        _, _, dists = get_loss(self.loss_params, enc_0, enc_1, 
                                            sim, z0, z1, is_pad_0, is_pad_1,
                                            matches_gt, masks_gt,
                                            pred_confidences, gt_confidences, 
                                            self.include_bce, self.bce_loss_fn)
         
 
-        loss = match_loss + bce_loss
+        #loss = match_loss + bce_loss
 
         precision, recall, f1, inst_precs, inst_recs, inst_f1s = get_loss_metrics(dists, is_pad_0, is_pad_1,
                                                  matches_gt, self.loss_params,
@@ -406,11 +421,6 @@ class LightningAssociator(L.LightningModule):
         self.log('recall', recall)
         self.log('f1', f1)
 
-        for ip, ir, if1 in zip(inst_precs, inst_recs, inst_f1s):
-            self.log('i_prec', ip)
-            self.log('i_rec', ir)
-            self.log('i_f1', if1)
-
         if self.include_bce:
             bce_precision, bce_recall, bce_f1 = get_bce_metrics(pred_confidences, gt_confidences,
                                                                 matches_gt, self.loss_params['bce_thresh'])
@@ -418,9 +428,22 @@ class LightningAssociator(L.LightningModule):
             self.log('bce_precision', bce_precision)
             self.log('bce_recall', bce_recall)
             self.log('bce_f1', bce_f1)
+
+        if len(self.validation_prec_outputs) == 0:
+            self.validation_prec_outputs = inst_precs
+            self.validation_rec_outputs = inst_recs
+            self.validation_f1_outputs = inst_f1s
+        else:
+            self.validation_prec_outputs = torch.concatenate((self.validation_prec_outputs, inst_precs))
+            self.validation_rec_outputs = torch.concatenate((self.validation_rec_outputs, inst_recs))
+            self.validation_f1_outputs = torch.concatenate((self.validation_f1_outputs, inst_f1s))
         
-        return loss
     
+    def on_test_epoch_end(self):
+        self.log('inst_prec', torch.mean(self.validation_prec_outputs))
+        self.log('inst_rec', torch.mean(self.validation_rec_outputs))
+        self.log('inst_f1', torch.mean(self.validation_f1_outputs))
+        
     def configure_optimizers(self):
         
         if self.weight_decay is None:
