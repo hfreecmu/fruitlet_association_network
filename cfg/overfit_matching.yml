@@ -1,6 +1,6 @@
 ### Params to change between exps:
 exp_name: 'overfit_matrching_debug'
-loss_path: 'cfg/loss/loss_matching_dist.yml'
+loss_path: 'cfg/loss/loss_matching_dot.yml'
 is_pheno: False
 ###
 
@@ -56,23 +56,23 @@ train_params:
   lr: 1e-4
   weight_decay: null # 1e-5
 
-  #scheduler: null
-  scheduler:
-    type: 'lr_step'
-    gamma: 0.90
-    train_step: 20
+  scheduler: null
+  # scheduler:
+  #   type: 'lr_step'
+  #   gamma: 0.90
+  #   train_step: 20
 
     # type: 'warmup_cosine'
     # warmup_epochs: 2
     # max_epochs: 40
 
-  augment: 
-    bright_pct: 0.5
-    rotate_pct: 0.0
-    drop_cloud_pct: 0.9 # want more now
-    drop_seg_pct: 0.9 # no effect without pos
-    crop_pct: 0.9
-    drop_fruitlet_pct: 0.4 # want more now
+  augment: null
+    # bright_pct: 0.5
+    # rotate_pct: 0.0
+    # drop_cloud_pct: 0.9 # want more now
+    # drop_seg_pct: 0.9 # no effect without pos
+    # crop_pct: 0.9
+    # drop_fruitlet_pct: 0.4 # want more now
 
   anno_root: *anno_root
   anno_subdir: 'mini'

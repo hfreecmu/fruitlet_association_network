@@ -1,5 +1,5 @@
 ### Params to change between exps:
-exp_name: 'contrastive_l2_full_pos_resnet_no_pos_enc_learn_add_linear'
+exp_name: 'matching_dot'
 loss_path: 'cfg/loss/loss_matching_dot.yml'
 is_pheno: False
 ###

@@ -77,66 +77,48 @@ def n_pair_loss_fn(features1, features2, gt_match, gt_mask, loss_params):
 
     return loss, distances
     
-def match_loss_fn(sim, z0, z1, gt_match, is_pad_0, is_pad_1, include_dist):
+def match_loss_fn(sim, z0, z1, gt_match, gt_mask, is_pad_0, is_pad_1, include_dist):
     certainties = F.logsigmoid(z0) + F.logsigmoid(z1).transpose(1, 2)
+
+    sim = torch.where(gt_mask > 0.0, sim, torch.zeros_like(sim) - torch.inf)
+    certainties = torch.where(gt_mask > 0.0, certainties, torch.zeros_like(certainties) - torch.inf)
+
+    b, m, n = sim.shape
+
+    scores0 = F.log_softmax(sim, 2)
+    scores1 =F.log_softmax(sim, 1)
+    scores = sim.new_full((b, m + 1, n + 1), 0)
+    scores[:, :m, :n] = torch.where(gt_mask > 0.0, scores0 + scores1 + certainties, torch.zeros_like(sim) - torch.inf)
+    scores[:, :-1, -1] = torch.where(~is_pad_0, F.logsigmoid(-z0.squeeze(-1)), torch.zeros_like(-z0.squeeze(-1)) - torch.inf)
+    scores[:, -1, :-1] = torch.where(~is_pad_1, F.logsigmoid(-z1.squeeze(-1)), torch.zeros_like(-z1.squeeze(-1)) - torch.inf)
+    scores[:, -1, -1] = -torch.inf
+
+    M_inds = torch.argwhere(gt_match == 1.0)
+    if M_inds.shape[0] > 0:
+        M_scores = scores[M_inds[:, 0], M_inds[:, 1], M_inds[:, 2]].mean()
+    else:
+        M_scores = sim.new_full((1,), 0)
+
+    A_inds = torch.argwhere((gt_match.sum(dim=2) == 0.0)*(~is_pad_0))
+    if A_inds.shape[0] > 0:
+        A_scores = scores[A_inds[:, 0], A_inds[:, 1], -1].mean() / 2
+    else:
+        A_scores = sim.new_full((1,), 0)
+
+    B_inds = torch.argwhere((gt_match.sum(dim=1) == 0.0)*(~is_pad_1))
+    if B_inds.shape[0] > 0:
+        B_scores = scores[B_inds[:, 0], -1, B_inds[:, 1]].mean() / 2
+    else:
+        B_scores = sim.new_full((1,), 0)
+    
+    loss = -(M_scores + A_scores + B_scores)
 
     # dists
     if include_dist:
-        dists = torch.zeros_like(sim)
+        dists = scores[:, 0:-1, 0:-1].exp()
     else:
         dists = None
 
-    losses = []
-    for ind in range(sim.shape[0]):
-        b_sim = sim[ind:ind+1, ~is_pad_0[ind]][:, :, ~is_pad_1[ind]]
-        b_cert = certainties[ind:ind+1, ~is_pad_0[ind]][:, :, ~is_pad_1[ind]]
-        b_z0 = z0[ind:ind+1, ~is_pad_0[ind]]
-        b_z1 = z1[ind:ind+1, ~is_pad_1[ind]]
-
-        b, m, n = b_sim.shape
-
-        scores0 = F.log_softmax(b_sim, 2)
-        scores1 = F.log_softmax(b_sim.transpose(-1, -2).contiguous(), 2).transpose(-1, -2)
-        scores = b_sim.new_full((b, m + 1, n + 1), 0)
-
-        scores[:, :m, :n] = scores0 + scores1 + b_cert
-        scores[:, :-1, -1] = F.logsigmoid(-b_z0.squeeze(-1))
-        scores[:, -1, :-1] = F.logsigmoid(-b_z1.squeeze(-1))
-
-        # dists
-        if include_dist:
-            tmp = dists[ind:ind+1, ~is_pad_0[ind]]
-            tmp[:, :, ~is_pad_1[ind]] = torch.exp(scores[:, 0:-1, 0:-1])
-            dists[ind:ind+1, ~is_pad_0[ind]] = tmp
-        else:
-            dists = None
-
-        scores = scores[0]
-        matches = gt_match[ind, ~is_pad_0[ind]][:, ~is_pad_1[ind]]
-
-        M_inds = torch.argwhere(matches == 1.0)
-        if M_inds.shape[0] > 0:
-            M_scores = scores[M_inds[:, 0], M_inds[:, 1]].mean()
-        else:
-            M_scores = 0
-
-        A_inds = torch.argwhere(matches.sum(dim=1) == 0.0)
-        if A_inds.shape[0] > 0:
-            A_scores = scores[A_inds[:, 0], -1].mean() / 2
-        else:
-            A_scores = 0
-
-        B_inds = torch.argwhere(matches.sum(dim=0) == 0.0)
-        if B_inds.shape[0] > 0:
-            B_scores = scores[-1, B_inds[:, 0]].mean() / 2
-        else:
-            B_scores = 0
-
-        b_loss = -(M_scores + A_scores + B_scores)
-        losses.append(b_loss)
-    
-    loss = torch.stack(losses).mean()
-    
     return loss, dists
 
 def get_loss(loss_params, features_0, features_1, 
@@ -149,7 +131,7 @@ def get_loss(loss_params, features_0, features_1,
         match_loss, dists = contrastive_loss_fn(features_0, features_1, matches_gt, masks_gt, 
                                                 loss_params)
     elif loss_params['loss_type'] == 'matching':
-        match_loss, dists = match_loss_fn(sim, z0, z1, matches_gt, is_pad_0, is_pad_1, include_dist)
+        match_loss, dists = match_loss_fn(sim, z0, z1, matches_gt, masks_gt, is_pad_0, is_pad_1, include_dist)
     elif loss_params['loss_type'] == 'n_pair':
         match_loss, dists = n_pair_loss_fn(features_0, features_1, matches_gt, masks_gt, 
                                            loss_params)
@@ -173,6 +155,7 @@ def get_loss_metrics(dists, is_pad_0, is_pad_1, matches_gt, loss_params,
     dists = dists.cpu().numpy()
     padded_0s = is_pad_0.cpu().numpy()
     padded_1s = is_pad_1.cpu().numpy()
+
     full_true_pos = 0
     full_false_pos = 0
     full_false_neg = 0
@@ -197,18 +180,16 @@ def get_loss_metrics(dists, is_pad_0, is_pad_1, matches_gt, loss_params,
             max0_exp, _ = batch_dists.max(1), batch_dists.max(0)
             
             indices0 = np.arange(m0.shape[0])
-            indices1 = np.arange(m1.shape[0])
+            #indices1 = np.arange(m1.shape[0])
             mutual0 = indices0 == m1[m0]
-            mutual1 = indices1 == m0[m1]
+            #mutual1 = indices1 == m0[m1]
 
             mscores0 = np.where(mutual0, max0_exp, np.zeros_like(max0_exp))
             #mscores1 = np.where(mutual1, mscores0[m1], np.zeros_like(max1_exp))
             valid0 = mutual0 & (mscores0 > loss_params['match_thresh'])
-            valid1 = mutual1 & valid0[m1]
-            m0 = m0[valid0]
-            m1 = m1[valid1]
-
-            is_match[m0, m1] = 1.0
+            #valid1 = mutual1 & valid0[m1]
+            
+            is_match[indices0[valid0], m0[valid0]] = 1.0
 
         if vis:
             vis_matches(is_match.cpu().numpy(), matches.cpu().numpy(), 

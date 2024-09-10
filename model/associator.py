@@ -112,16 +112,17 @@ class FruitletAssociator(nn.Module):
                                     )
         
         # enc_0 and enc_1 are used for contrastive loss
-        enc_0 = enc_0 / self.scale
-        enc_1 = enc_1 / self.scale
+        # enc_0 = enc_0 / self.scale
+        # enc_1 = enc_1 / self.scale
 
         if self.loss_params['loss_type'] == 'matching':
             # sim, z0, z1 are used for matching loss
             mdesc0, mdesc1 = self.final_proj(enc_0), self.final_proj(enc_1)
             if self.loss_params['use_dist']:
+                raise RuntimeError('not supported right now. not sure best thing to do with scale')
                 sim = -torch.cdist(mdesc0, mdesc1)
             else:
-                sim = torch.einsum("bmd,bnd->bmn", mdesc0, mdesc1)
+                sim = torch.einsum("bmd,bnd->bmn", mdesc0, mdesc1) / self.scale
                 
             z0 = self.matchability(enc_0)
             z1 = self.matchability(enc_1)
