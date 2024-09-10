@@ -78,7 +78,7 @@ def train(is_pheno,
     checkpoint_callback_val = ModelCheckpoint(save_top_k=2, monitor="val_loss", filename=filename_val)
     filename_f1 = '{epoch:02d}-{f1:.2f}'
     checkpoint_callback_f1 = ModelCheckpoint(save_top_k=2, monitor="f1", mode='max', filename=filename_f1)
-    filename_inst_f1 = '{epoch:02d}-{f1:.2f}'
+    filename_inst_f1 = '{epoch:02d}-{inst_f1:.2f}'
     checkpoint_callback_inst_f1 = ModelCheckpoint(save_top_k=2, monitor="inst_f1", mode='max', filename=filename_inst_f1)
 
     logger = TensorBoardLogger(save_dir=os.getcwd(), version=exp_name)
