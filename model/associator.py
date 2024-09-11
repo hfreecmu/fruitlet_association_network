@@ -35,10 +35,10 @@ class FruitletAssociator(nn.Module):
         else:
             self.pos_encoder_2d = build_position_encoding(d_model)
 
-        if not is_pheno:
-            self.pos_encoder_3d = Fixed3DPositionalEncoder(**pos_encoder_args)
-        else:
-            self.pos_encoder_3d = PhenoFixed3DPositionalEncoder(**pos_encoder_args)
+        # if not is_pheno:
+        #     self.pos_encoder_3d = Fixed3DPositionalEncoder(**pos_encoder_args)
+        # else:
+        #     self.pos_encoder_3d = PhenoFixed3DPositionalEncoder(**pos_encoder_args)
 
         self.d_model = d_model
         self.scale = d_model**0.5
@@ -88,14 +88,16 @@ class FruitletAssociator(nn.Module):
         vis_enc_0 = vis_enc_0.view(num_batches, fruitlets_per_batch, self.d_model)
         vis_enc_1 = vis_enc_1.view(num_batches, fruitlets_per_batch, self.d_model)
 
-        pos_enc_0_3d = self.pos_encoder_3d(cloud_0)
-        pos_enc_1_3d = self.pos_encoder_3d(cloud_1)
+        #pos_enc_0_3d = self.pos_encoder_3d(cloud_0)
+        #pos_enc_1_3d = self.pos_encoder_3d(cloud_1)
 
         pos_enc_0_2d = self.pos_encoder_2d(pos_2ds_0)
         pos_enc_1_2d = self.pos_encoder_2d(pos_2ds_1)
 
-        pos_enc_0 = pos_enc_0_3d + pos_enc_0_2d
-        pos_enc_1 = pos_enc_1_3d + pos_enc_1_2d
+        #pos_enc_0 = pos_enc_0_3d + pos_enc_0_2d
+        #pos_enc_1 = pos_enc_1_3d + pos_enc_1_2d
+        pos_enc_0 = pos_enc_0_2d
+        pos_enc_1 = pos_enc_1_2d
 
         if 'zero' in self.encoder_type:
             vis_enc_0, vis_enc_1 = pos_enc_0, pos_enc_1
