@@ -21,15 +21,18 @@ def contrastive_loss_fn(features1, features2, gt_match, gt_mask,
     margin = loss_params['margin']
 
     # Ensure features are normalized
-    features1 = F.normalize(features1, p=2, dim=-1)
-    features2 = F.normalize(features2, p=2, dim=-1)
+    #features1 = F.normalize(features1, p=2, dim=-1)
+    #features2 = F.normalize(features2, p=2, dim=-1)
+
+    scale = features1.shape[-1]**0.5
 
     if dist_type == 'l2':
-        distances = torch.cdist(features1, features2)
+        distances = torch.cdist(features1, features2) / scale
         # Compute the contrastive loss
         match_loss = gt_match * torch.square(distances)
         non_match_loss = (1 - gt_match) * torch.square(torch.clamp(margin - distances, min=0.0))
     elif dist_type == 'cos':
+        raise RuntimeError('not supported in this branch')
         cosines = torch.einsum("bmd,bnd->bmn", features1, features2)
         distances = 1 - cosines
         # Compute the contrastive loss

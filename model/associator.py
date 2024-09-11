@@ -116,6 +116,7 @@ class FruitletAssociator(nn.Module):
         # enc_1 = enc_1 / self.scale
 
         if self.loss_params['loss_type'] == 'matching':
+            raise RuntimeError('not supported in this branch')
             # sim, z0, z1 are used for matching loss
             mdesc0, mdesc1 = self.final_proj(enc_0), self.final_proj(enc_1)
             if self.loss_params['use_dist']:
