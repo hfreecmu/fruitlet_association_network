@@ -30,10 +30,10 @@ class FruitletAssociator(nn.Module):
 
         pos_encoder_args['d_model'] = d_model
 
-        if 'zero' in pos_encoder_args['pos_encoder_type']:
-            self.pos_encoder_2d = ZeroEncoder(d_model)
-        else:
-            self.pos_encoder_2d = build_position_encoding(d_model)
+        # if 'zero' in pos_encoder_args['pos_encoder_type']:
+        #     self.pos_encoder_2d = ZeroEncoder(d_model)
+        # else:
+        #     self.pos_encoder_2d = build_position_encoding(d_model)
 
         if not is_pheno:
             self.pos_encoder_3d = Fixed3DPositionalEncoder(**pos_encoder_args)
@@ -91,11 +91,11 @@ class FruitletAssociator(nn.Module):
         pos_enc_0_3d = self.pos_encoder_3d(cloud_0)
         pos_enc_1_3d = self.pos_encoder_3d(cloud_1)
 
-        pos_enc_0_2d = self.pos_encoder_2d(pos_2ds_0)
-        pos_enc_1_2d = self.pos_encoder_2d(pos_2ds_1)
+        #pos_enc_0_2d = self.pos_encoder_2d(pos_2ds_0)
+        #pos_enc_1_2d = self.pos_encoder_2d(pos_2ds_1)
 
-        pos_enc_0 = pos_enc_0_3d + pos_enc_0_2d
-        pos_enc_1 = pos_enc_1_3d + pos_enc_1_2d
+        pos_enc_0 = pos_enc_0_3d# + pos_enc_0_2d
+        pos_enc_1 = pos_enc_1_3d# + pos_enc_1_2d
 
         if 'zero' in self.encoder_type:
             vis_enc_0, vis_enc_1 = pos_enc_0, pos_enc_1
