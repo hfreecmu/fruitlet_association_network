@@ -78,48 +78,30 @@ def n_pair_loss_fn(features1, features2, gt_match, gt_mask, loss_params):
     return loss, distances
     
 def match_loss_fn(sim, z0, z1, gt_match, gt_mask, is_pad_0, is_pad_1, include_dist):
-    certainties = F.logsigmoid(z0) + F.logsigmoid(z1).transpose(1, 2)
+    sim_orig = sim
 
     sim = torch.where(gt_mask > 0.0, sim, torch.zeros_like(sim) - torch.inf)
-    certainties = torch.where(gt_mask > 0.0, certainties, torch.zeros_like(certainties) - torch.inf)
-
-    b, m, n = sim.shape
 
     scores0 = F.log_softmax(sim, 2)
     scores1 =F.log_softmax(sim, 1)
-    scores = sim.new_full((b, m + 1, n + 1), 0)
-    scores[:, :m, :n] = torch.where(gt_mask > 0.0, scores0 + scores1 + certainties, torch.zeros_like(sim) - torch.inf)
-    scores[:, :-1, -1] = torch.where(~is_pad_0, F.logsigmoid(-z0.squeeze(-1)), torch.zeros_like(-z0.squeeze(-1)) - torch.inf)
-    scores[:, -1, :-1] = torch.where(~is_pad_1, F.logsigmoid(-z1.squeeze(-1)), torch.zeros_like(-z1.squeeze(-1)) - torch.inf)
-    scores[:, -1, -1] = -torch.inf
+    scores = torch.where(gt_mask > 0.0, scores0 + scores1, torch.zeros_like(sim) - torch.inf)
 
     M_inds = torch.argwhere(gt_match == 1.0)
     if M_inds.shape[0] > 0:
         M_scores = scores[M_inds[:, 0], M_inds[:, 1], M_inds[:, 2]].mean()
     else:
         M_scores = sim.new_full((1,), 0)
-
-    A_inds = torch.argwhere((gt_match.sum(dim=2) == 0.0)*(~is_pad_0))
-    if A_inds.shape[0] > 0:
-        A_scores = scores[A_inds[:, 0], A_inds[:, 1], -1].mean() / 2
-    else:
-        A_scores = sim.new_full((1,), 0)
-
-    B_inds = torch.argwhere((gt_match.sum(dim=1) == 0.0)*(~is_pad_1))
-    if B_inds.shape[0] > 0:
-        B_scores = scores[B_inds[:, 0], -1, B_inds[:, 1]].mean() / 2
-    else:
-        B_scores = sim.new_full((1,), 0)
     
-    loss = -(M_scores + A_scores + B_scores)
+    loss = -M_scores
 
     # dists
     if include_dist:
         dists = scores[:, 0:-1, 0:-1].exp()
+        dists2 = -sim_orig
     else:
         dists = None
 
-    return loss, dists
+    return loss, dists, dists2
 
 def get_loss(loss_params, features_0, features_1, 
              sim, z0, z1, is_pad_0, is_pad_1,
@@ -131,7 +113,7 @@ def get_loss(loss_params, features_0, features_1,
         match_loss, dists = contrastive_loss_fn(features_0, features_1, matches_gt, masks_gt, 
                                                 loss_params)
     elif loss_params['loss_type'] == 'matching':
-        match_loss, dists = match_loss_fn(sim, z0, z1, matches_gt, masks_gt, is_pad_0, is_pad_1, include_dist)
+        match_loss, dists, dists2 = match_loss_fn(sim, z0, z1, matches_gt, masks_gt, is_pad_0, is_pad_1, include_dist)
     elif loss_params['loss_type'] == 'n_pair':
         match_loss, dists = n_pair_loss_fn(features_0, features_1, matches_gt, masks_gt, 
                                            loss_params)
@@ -143,11 +125,11 @@ def get_loss(loss_params, features_0, features_1,
     else:
         bce_loss = 0.0
 
-    return match_loss, bce_loss, dists
+    return match_loss, bce_loss, dists, dists2
 
 # TODO don't like how vis is in loss metrics. Move it.
 # probably have a common function to find matches
-def get_loss_metrics(dists, is_pad_0, is_pad_1, matches_gt, loss_params,
+def get_loss_metrics(dists, dists2, is_pad_0, is_pad_1, matches_gt, loss_params,
                      vis=False, 
                      im_paths_0=None, anno_paths_0=None, det_inds_0=None, 
                      im_paths_1=None, anno_paths_1=None, det_inds_1=None, 
@@ -162,17 +144,18 @@ def get_loss_metrics(dists, is_pad_0, is_pad_1, matches_gt, loss_params,
     inst_precs = []
     inst_recs = []
     inst_f1s = []
-    for ind, batch_data in enumerate(zip(dists, matches_gt, padded_0s, padded_1s)):
-        batch_dists, batch_matches_gt, batch_pad_0s, batch_pad_1s = batch_data
+    for ind, batch_data in enumerate(zip(dists, dists2, matches_gt, padded_0s, padded_1s)):
+        batch_dists, batch_dists2, batch_matches_gt, batch_pad_0s, batch_pad_1s = batch_data
 
         batch_dists = batch_dists[~batch_pad_0s][:, ~batch_pad_1s]
+        batch_dists2 = batch_dists2[~batch_pad_0s][:, ~batch_pad_1s]
         matches = batch_matches_gt[~batch_pad_0s][:, ~batch_pad_1s]
             
         if loss_params['use_linear_sum']:
-            row_inds, col_inds = linear_sum_assignment(batch_dists)
+            row_inds, col_inds = linear_sum_assignment(batch_dists2)
             is_match = torch.zeros_like(matches)
             is_match[row_inds, col_inds] = 1.0
-            is_match[batch_dists > loss_params['match_thresh']] = 0.0
+            is_match[batch_dists2 > loss_params['match_thresh']] = 0.0
         else:
             is_match = torch.zeros_like(matches)
 
@@ -300,7 +283,7 @@ class LightningAssociator(L.LightningModule):
 
         enc_0, enc_1, sim, z0, z1, pred_confidences, gt_confidences = self.associator(data_0, data_1, matches_gt)
 
-        match_loss, bce_loss, _ = get_loss(self.loss_params, enc_0, enc_1, 
+        match_loss, bce_loss, _, _ = get_loss(self.loss_params, enc_0, enc_1, 
                                            sim, z0, z1, is_pad_0, is_pad_1,
                                            matches_gt, masks_gt,
                                            pred_confidences, gt_confidences, 
@@ -327,7 +310,7 @@ class LightningAssociator(L.LightningModule):
 
         enc_0, enc_1, sim, z0, z1, pred_confidences, gt_confidences = self.associator(data_0, data_1, matches_gt)
         
-        match_loss, bce_loss, dists = get_loss(self.loss_params, enc_0, enc_1, 
+        match_loss, bce_loss, dists, dists2 = get_loss(self.loss_params, enc_0, enc_1, 
                                            sim, z0, z1, is_pad_0, is_pad_1,
                                            matches_gt, masks_gt,
                                            pred_confidences, gt_confidences, 
@@ -338,7 +321,7 @@ class LightningAssociator(L.LightningModule):
         self.log("val_loss", loss, prog_bar=True)
         self.log("val_match_loss", match_loss)
 
-        precision, recall, f1, inst_precs, inst_recs, inst_f1s  = get_loss_metrics(dists, is_pad_0, is_pad_1,
+        precision, recall, f1, inst_precs, inst_recs, inst_f1s  = get_loss_metrics(dists, dists2, is_pad_0, is_pad_1,
                                                  matches_gt, self.loss_params)
         
         self.log('precision', precision)
@@ -382,7 +365,7 @@ class LightningAssociator(L.LightningModule):
 
         enc_0, enc_1, sim, z0, z1, pred_confidences, gt_confidences = self.associator(data_0, data_1, matches_gt)
         
-        _, _, dists = get_loss(self.loss_params, enc_0, enc_1, 
+        _, _, dists, dists2 = get_loss(self.loss_params, enc_0, enc_1, 
                                            sim, z0, z1, is_pad_0, is_pad_1,
                                            matches_gt, masks_gt,
                                            pred_confidences, gt_confidences, 
@@ -391,7 +374,7 @@ class LightningAssociator(L.LightningModule):
 
         #loss = match_loss + bce_loss
 
-        precision, recall, f1, inst_precs, inst_recs, inst_f1s = get_loss_metrics(dists, is_pad_0, is_pad_1,
+        precision, recall, f1, inst_precs, inst_recs, inst_f1s = get_loss_metrics(dists, dists2, is_pad_0, is_pad_1,
                                                  matches_gt, self.loss_params,
                                                  self.vis, 
                                                  im_paths_0, anno_paths_0, det_inds_0, 

@@ -51,8 +51,9 @@ class FruitletAssociator(nn.Module):
                                            encoder_norm)
         
         if loss_params['loss_type'] == 'matching':
-            self.final_proj = nn.Linear(d_model, d_model)
-            self.matchability = nn.Linear(d_model, 1)
+            #self.final_proj = nn.Linear(d_model, d_model)
+            #self.matchability = nn.Linear(d_model, 1)
+            pass
         
         self.loss_params = loss_params
 
@@ -117,15 +118,17 @@ class FruitletAssociator(nn.Module):
 
         if self.loss_params['loss_type'] == 'matching':
             # sim, z0, z1 are used for matching loss
-            mdesc0, mdesc1 = self.final_proj(enc_0), self.final_proj(enc_1)
+            #mdesc0, mdesc1 = self.final_proj(enc_0), self.final_proj(enc_1)
+            mdesc0, mdesc1 = enc_0, enc_1
             if self.loss_params['use_dist']:
-                raise RuntimeError('not supported right now. not sure best thing to do with scale')
-                sim = -torch.cdist(mdesc0, mdesc1)
+                #raise RuntimeError('not supported right now. not sure best thing to do with scale')
+                sim = -torch.cdist(mdesc0, mdesc1) / self.scale
             else:
+                raise RuntimeError('not supported in this branch')
                 sim = torch.einsum("bmd,bnd->bmn", mdesc0, mdesc1) / self.scale
                 
-            z0 = self.matchability(enc_0)
-            z1 = self.matchability(enc_1)
+            z0 = None #self.matchability(enc_0)
+            z1 = None #self.matchability(enc_1)
         else:
             sim = None
             z0 = None
