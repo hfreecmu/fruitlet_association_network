@@ -15,7 +15,7 @@ batch_size: &batch_size 32
 full_cloud_dir: &full_cloud_dir 'labelling/full_point_clouds'
 
 # data and logging
-anno_root: &anno_root 'datasets'
+anno_root: &anno_root 'datasets/v1_bak_working_data'
 checkpoint_dir: 'lightning_logs'
 image_size: &image_size 128
 #vis_encoder_type: &vis_encoder_type 'resnet-18'

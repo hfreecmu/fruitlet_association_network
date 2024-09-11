@@ -87,9 +87,10 @@ def train(is_pheno,
                         callbacks=[checkpoint_callback_val, checkpoint_callback_f1, checkpoint_callback_inst_f1],
                         logger=logger, log_every_n_steps=5,
                         accelerator="gpu",
-                        devices=4,
+                        #devices=4,
+                        devices=-1,
                         strategy="ddp",
-                        num_nodes=1
+                        #num_nodes=1
                         )
 
     trainer.fit(model=model, 
